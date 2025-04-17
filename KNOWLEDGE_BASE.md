@@ -228,6 +228,7 @@ W sekcji "Monitoring" możesz:
 1. Sprawdź logi kontenera: `docker logs deploy-orchestrator`
 2. Upewnij się, że wszystkie zależności są poprawnie zainstalowane
 3. Jeśli widzisz błędy "Cannot find module", zrestartuj stack: `docker-compose down && docker-compose up -d`
+4. Jeśli problem nadal występuje, upewnij się, że pakiet `express-fileupload` jest poprawnie zainstalowany i skonfigurowany w pliku `index.js`
 
 #### Problem: Błędy ACME w logach Traefik
 
@@ -238,14 +239,16 @@ W sekcji "Monitoring" możesz:
 2. Jeśli nie używasz Cloudflare, wyłącz obsługę SSL w konfiguracji Traefik
 3. Zrestartuj kontener Traefik: `docker restart deploy-traefik`
 
-#### Problem: Błąd 404 przy próbie dostępu do API
+#### Problem: Nie można wgrać plików przez formularz
 
-**Przyczyna:** Brakujący endpoint w konfiguracji Orkiestratora.
+**Przyczyna:** Brak middleware express-fileupload lub niepoprawna konfiguracja endpointu /api/upload.
 
 **Rozwiązanie:**
-1. Upewnij się, że używasz najnowszej wersji z repozytorium
-2. Sprawdź, czy wszystkie endpointy są poprawnie zdefiniowane w pliku `index.js`
-3. Zrestartuj kontener Orkiestratora: `docker restart deploy-orchestrator`
+1. Upewnij się, że pakiet `express-fileupload` jest zainstalowany: `npm list express-fileupload`
+2. Sprawdź, czy middleware jest poprawnie skonfigurowany w pliku `index.js`
+3. Zweryfikuj, czy endpoint `/api/upload` jest poprawnie zaimplementowany
+4. Sprawdź, czy formularz HTML ma atrybut `enctype="multipart/form-data"`
+5. Zrestartuj kontener Orkiestratora: `docker restart deploy-orchestrator`
 
 #### Problem: Brak dostępu do interfejsu webowego
 
