@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeployMaster - Orkiestrator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 2rem;
+            background-color: #f8f9fa;
+        }
+        .card {
+            margin-bottom: 1.5rem;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        }
+        .upload-area {
+            border: 2px dashed #ddd;
+            border-radius: 5px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .upload-area:hover {
+            border-color: #0d6efd;
+            background-color: rgba(13, 110, 253, 0.05);
+        }
+        .project-list {
+            margin-top: 2rem;
+        }
+        .service-toggle {
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="pb-3 mb-4 border-bottom">
+            <div class="d-flex align-items-center text-dark text-decoration-none">
+                <span class="fs-4">DeployMaster - Orkiestrator</span>
+            </div>
+        </header>
+
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Upload projektu</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="upload-area" class="upload-area">
+                            <h5>Przeciągnij i upuść plik ZIP z projektem</h5>
+                            <p>lub</p>
+                            <button id="select-file-btn" class="btn btn-primary">Wybierz plik</button>
+                            <input type="file" id="file-input" style="display: none;" accept=".zip">
+                        </div>
+                        <div id="upload-progress" class="progress mt-3" style="display: none;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="project-info-card" class="card" style="display: none;">
+                    <div class="card-header">
+                        <h5>Informacje o projekcie</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <strong>Nazwa pliku:</strong> <span id="file-name"></span>
+                        </div>
+                        <div class="mb-3">
+                            <strong>Typ projektu:</strong> <span id="project-type"></span>
+                        </div>
+                        <div class="mb-3">
+                            <strong>Rozmiar:</strong> <span id="file-size"></span>
+                        </div>
+                        
+                        <h5 class="mt-4">Usługi do włączenia</h5>
+                        
+                        <div class="service-toggle form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="db-toggle">
+                            <label class="form-check-label" for="db-toggle">Baza danych</label>
+                            <div id="db-options" class="mt-2" style="display: none;">
+                                <select id="db-type" class="form-select mb-2">
+                                    <option value="postgres">PostgreSQL</option>
+                                    <option value="mysql">MySQL</option>
+                                    <option value="mongodb">MongoDB</option>
+                                </select>
+                                <div class="row g-2">
+                                    <div class="col-md-4">
+                                        <input type="text" id="db-user" class="form-control" placeholder="Użytkownik" value="dbuser">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <input type="password" id="db-password" class="form-control" placeholder="Hasło" value="dbpassword">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <input type="text" id="db-name" class="form-control" placeholder="Nazwa bazy" value="appdb">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="service-toggle form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="redis-toggle">
+                            <label class="form-check-label" for="redis-toggle">Redis</label>
+                            <div id="redis-options" class="mt-2" style="display: none;">
+                                <div class="row g-2">
+                                    <div class="col-md-6">
+                                        <input type="password" id="redis-password" class="form-control" placeholder="Hasło" value="redispassword">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="service-toggle form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="monitoring-toggle">
+                            <label class="form-check-label" for="monitoring-toggle">Monitoring (Prometheus + Grafana)</label>
+                        </div>
+                        
+                        <div class="service-toggle form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="mailhog-toggle">
+                            <label class="form-check-label" for="mailhog-toggle">MailHog</label>
+                        </div>
+                        
+                        <div class="service-toggle form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="minio-toggle">
+                            <label class="form-check-label" for="minio-toggle">MinIO (S3)</label>
+                        </div>
+                        
+                        <button id="deploy-btn" class="btn btn-success mt-3">Deployuj projekt</button>
+                    </div>
+                </div>
+                
+                <div id="deploy-result-card" class="card" style="display: none;">
+                    <div class="card-header">
+                        <h5>Wynik deploymentu</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-success">
+                            <h5>Projekt został zdeployowany pomyślnie!</h5>
+                        </div>
+                        <div class="mb-3">
+                            <strong>URL projektu:</strong> <a id="project-url" href="#" target="_blank"></a>
+                        </div>
+                        <div class="mb-3">
+                            <strong>ID projektu:</strong> <span id="project-id"></span>
+                        </div>
+                        <div id="services-info">
+                            <h5 class="mt-3">Uruchomione usługi:</h5>
+                            <ul id="services-list" class="list-group">
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Zdeployowane projekty</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="projects-list" class="list-group">
+                            <div class="text-center py-3">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Ładowanie...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Elementy DOM
+            const uploadArea = document.getElementById('upload-area');
+            const fileInput = document.getElementById('file-input');
+            const selectFileBtn = document.getElementById('select-file-btn');
+            const uploadProgress = document.getElementById('upload-progress');
+            const progressBar = uploadProgress.querySelector('.progress-bar');
+            const projectInfoCard = document.getElementById('project-info-card');
+            const fileName = document.getElementById('file-name');
+            const projectType = document.getElementById('project-type');
+            const fileSize = document.getElementById('file-size');
+            const deployBtn = document.getElementById('deploy-btn');
+            const deployResultCard = document.getElementById('deploy-result-card');
+            const projectUrl = document.getElementById('project-url');
+            const projectId = document.getElementById('project-id');
+            const servicesList = document.getElementById('services-list');
+            const projectsList = document.getElementById('projects-list');
+            
+            // Przełączniki usług
+            const dbToggle = document.getElementById('db-toggle');
+            const dbOptions = document.getElementById('db-options');
+            const redisToggle = document.getElementById('redis-toggle');
+            const redisOptions = document.getElementById('redis-options');
+            
+            // Obsługa przełączników
+            dbToggle.addEventListener('change', function() {
+                dbOptions.style.display = this.checked ? 'block' : 'none';
+            });
+            
+            redisToggle.addEventListener('change', function() {
+                redisOptions.style.display = this.checked ? 'block' : 'none';
+            });
+            
+            // Obsługa wyboru pliku
+            selectFileBtn.addEventListener('click', function() {
+                fileInput.click();
+            });
+            
+            fileInput.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    uploadFile(this.files[0]);
+                }
+            });
+            
+            // Obsługa drag & drop
+            uploadArea.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                this.classList.add('bg-light');
+            });
+            
+            uploadArea.addEventListener('dragleave', function() {
+                this.classList.remove('bg-light');
+            });
+            
+            uploadArea.addEventListener('drop', function(e) {
+                e.preventDefault();
+                this.classList.remove('bg-light');
+                
+                if (e.dataTransfer.files.length > 0) {
+                    uploadFile(e.dataTransfer.files[0]);
+                }
+            });
+            
+            // Funkcja do uploadu pliku
+            function uploadFile(file) {
+                if (!file.name.endsWith('.zip')) {
+                    alert('Proszę wybrać plik ZIP');
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('project', file);
+                
+                uploadProgress.style.display = 'block';
+                
+                const xhr = new XMLHttpRequest();
+                
+                xhr.upload.addEventListener('progress', function(e) {
+                    if (e.lengthComputable) {
+                        const percentComplete = (e.loaded / e.total) * 100;
+                        progressBar.style.width = percentComplete + '%';
+                    }
+                });
+                
+                xhr.addEventListener('load', function() {
+                    if (xhr.status === 200) {
+                        const response = JSON.parse(xhr.responseText);
+                        
+                        if (response.status) {
+                            // Wyświetlenie informacji o projekcie
+                            fileName.textContent = response.data.fileName;
+                            projectType.textContent = response.data.projectType;
+                            fileSize.textContent = formatFileSize(response.data.projectSize);
+                            
+                            projectInfoCard.style.display = 'block';
+                            uploadProgress.style.display = 'none';
+                        } else {
+                            alert('Błąd: ' + response.message);
+                            uploadProgress.style.display = 'none';
+                        }
+                    } else {
+                        alert('Wystąpił błąd podczas uploadu');
+                        uploadProgress.style.display = 'none';
+                    }
+                });
+                
+                xhr.addEventListener('error', function() {
+                    alert('Wystąpił błąd podczas uploadu');
+                    uploadProgress.style.display = 'none';
+                });
+                
+                xhr.open('POST', '/api/upload');
+                xhr.send(formData);
+            }
+            
+            // Obsługa przycisku deploymentu
+            deployBtn.addEventListener('click', function() {
+                const services = {
+                    db: {
+                        enabled: dbToggle.checked,
+                        type: document.getElementById('db-type').value,
+                        user: document.getElementById('db-user').value,
+                        password: document.getElementById('db-password').value,
+                        name: document.getElementById('db-name').value
+                    },
+                    redis: {
+                        enabled: redisToggle.checked,
+                        password: document.getElementById('redis-password').value
+                    },
+                    monitoring: {
+                        enabled: document.getElementById('monitoring-toggle').checked
+                    },
+                    mailhog: {
+                        enabled: document.getElementById('mailhog-toggle').checked
+                    },
+                    minio: {
+                        enabled: document.getElementById('minio-toggle').checked
+                    }
+                };
+                
+                const data = {
+                    fileName: fileName.textContent,
+                    services: services
+                };
+                
+                fetch('/api/deploy', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status) {
+                        // Wyświetlenie wyniku deploymentu
+                        projectUrl.textContent = data.data.url;
+                        projectUrl.href = data.data.url;
+                        projectId.textContent = data.data.id;
+                        
+                        // Wyświetlenie listy usług
+                        servicesList.innerHTML = '';
+                        
+                        if (data.data.services.db && data.data.services.db.enabled) {
+                            const li = document.createElement('li');
+                            li.className = 'list-group-item';
+                            li.textContent = `Baza danych (${data.data.services.db.type})`;
+                            servicesList.appendChild(li);
+                        }
+                        
+                        if (data.data.services.redis && data.data.services.redis.enabled) {
+                            const li = document.createElement('li');
+                            li.className = 'list-group-item';
+                            li.textContent = 'Redis';
+                            servicesList.appendChild(li);
+                        }
+                        
+                        if (data.data.services.monitoring && data.data.services.monitoring.enabled) {
+                            const li = document.createElement('li');
+                            li.className = 'list-group-item';
+                            li.textContent = 'Monitoring (Prometheus + Grafana)';
+                            servicesList.appendChild(li);
+                        }
+                        
+                        if (data.data.services.mailhog && data.data.services.mailhog.enabled) {
+                            const li = document.createElement('li');
+                            li.className = 'list-group-item';
+                            li.textContent = 'MailHog';
+                            servicesList.appendChild(li);
+                        }
+                        
+                        if (data.data.services.minio && data.data.services.minio.enabled) {
+                            const li = document.createElement('li');
+                            li.className = 'list-group-item';
+                            li.textContent = 'MinIO (S3)';
+                            servicesList.appendChild(li);
+                        }
+                        
+                        deployResultCard.style.display = 'block';
+                        
+                        // Odświeżenie listy projektów
+                        loadProjects();
+                    } else {
+                        alert('Błąd: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    alert('Wystąpił błąd podczas deploymentu: ' + error);
+                });
+            });
+            
+            // Funkcja do ładowania listy projektów
+            function loadProjects() {
+                fetch('/api/projects')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status) {
+                        projectsList.innerHTML = '';
+                        
+                        if (data.data.length === 0) {
+                            projectsList.innerHTML = '<div class="text-center py-3">Brak zdeployowanych projektów</div>';
+                            return;
+                        }
+                        
+                        data.data.forEach(project => {
+                            const a = document.createElement('a');
+                            a.className = 'list-group-item list-group-item-action';
+                            a.href = project.url;
+                            a.target = '_blank';
+                            
+                            const div = document.createElement('div');
+                            div.className = 'd-flex w-100 justify-content-between';
+                            
+                            const h5 = document.createElement('h5');
+                            h5.className = 'mb-1';
+                            h5.textContent = project.name;
+                            
+                            const small = document.createElement('small');
+                            small.textContent = formatDate(project.deployedAt);
+                            
+                            div.appendChild(h5);
+                            div.appendChild(small);
+                            
+                            const p = document.createElement('p');
+                            p.className = 'mb-1';
+                            p.textContent = `Typ: ${project.type}, Port: ${project.port}`;
+                            
+                            a.appendChild(div);
+                            a.appendChild(p);
+                            
+                            projectsList.appendChild(a);
+                        });
+                    } else {
+                        projectsList.innerHTML = '<div class="text-center py-3">Błąd podczas ładowania projektów</div>';
+                    }
+                })
+                .catch(error => {
+                    projectsList.innerHTML = '<div class="text-center py-3">Błąd podczas ładowania projektów</div>';
+                });
+            }
+            
+            // Funkcje pomocnicze
+            function formatFileSize(bytes) {
+                if (bytes === 0) return '0 B';
+                
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+            
+            function formatDate(dateString) {
+                const date = new Date(dateString);
+                return date.toLocaleString();
+            }
+            
+            // Ładowanie listy projektów przy starcie
+            loadProjects();
+        });
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

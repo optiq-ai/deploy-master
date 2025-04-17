@@ -1,0 +1,156 @@
+{{!-- Szablon dla formularza tworzenia nowego projektu --}}
+<div class="card">
+  <div class="card-header">
+    <h5>Nowy projekt</h5>
+  </div>
+  <div class="card-body">
+    <form id="new-project-form">
+      <div class="mb-3">
+        <label for="project-name" class="form-label">Nazwa projektu</label>
+        <input type="text" class="form-control" id="project-name" required>
+      </div>
+      
+      <div class="mb-3">
+        <label for="project-type" class="form-label">Typ projektu</label>
+        <select class="form-select" id="project-type" required>
+          <option value="static">Statyczna strona HTML</option>
+          <option value="react">Aplikacja React</option>
+          <option value="nextjs">Aplikacja Next.js</option>
+          <option value="vue">Aplikacja Vue.js</option>
+        </select>
+      </div>
+      
+      <div class="mb-3">
+        <label for="project-file" class="form-label">Plik projektu (ZIP)</label>
+        <input type="file" class="form-control" id="project-file" accept=".zip" required>
+      </div>
+      
+      <h5 class="mt-4">Środowisko</h5>
+      <div class="mb-3">
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="environment" id="env-dev" value="dev" checked>
+          <label class="form-check-label" for="env-dev">Development</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="environment" id="env-test" value="test">
+          <label class="form-check-label" for="env-test">Test</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="environment" id="env-prod" value="prod">
+          <label class="form-check-label" for="env-prod">Production</label>
+        </div>
+      </div>
+      
+      <h5 class="mt-4">Usługi</h5>
+      <div class="row">
+        <div class="col-md-6">
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="service-db">
+            <label class="form-check-label" for="service-db">Baza danych</label>
+            <div id="db-options" class="mt-2 ps-4" style="display: none;">
+              <select id="db-type" class="form-select mb-2">
+                <option value="postgres">PostgreSQL</option>
+                <option value="mysql">MySQL</option>
+                <option value="mongodb">MongoDB</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="service-redis">
+            <label class="form-check-label" for="service-redis">Redis</label>
+          </div>
+          
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="service-rabbitmq">
+            <label class="form-check-label" for="service-rabbitmq">RabbitMQ</label>
+          </div>
+        </div>
+        
+        <div class="col-md-6">
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="service-monitoring">
+            <label class="form-check-label" for="service-monitoring">Monitoring</label>
+          </div>
+          
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="service-mailhog">
+            <label class="form-check-label" for="service-mailhog">MailHog</label>
+          </div>
+          
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="service-minio">
+            <label class="form-check-label" for="service-minio">MinIO (S3)</label>
+          </div>
+        </div>
+      </div>
+      
+      <div class="mt-4">
+        <button type="submit" class="btn btn-primary">Utwórz projekt</button>
+        <button type="button" class="btn btn-secondary" onclick="cancelNewProject()">Anuluj</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  document.getElementById('service-db').addEventListener('change', function() {
+    document.getElementById('db-options').style.display = this.checked ? 'block' : 'none';
+  });
+  
+  document.getElementById('new-project-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    // Tutaj kod do przesłania formularza
+    const formData = new FormData();
+    formData.append('name', document.getElementById('project-name').value);
+    formData.append('type', document.getElementById('project-type').value);
+    formData.append('file', document.getElementById('project-file').files[0]);
+    formData.append('environment', document.querySelector('input[name="environment"]:checked').value);
+    
+    const services = {
+      db: {
+        enabled: document.getElementById('service-db').checked,
+        type: document.getElementById('db-type').value
+      },
+      redis: {
+        enabled: document.getElementById('service-redis').checked
+      },
+      rabbitmq: {
+        enabled: document.getElementById('service-rabbitmq').checked
+      },
+      monitoring: {
+        enabled: document.getElementById('service-monitoring').checked
+      },
+      mailhog: {
+        enabled: document.getElementById('service-mailhog').checked
+      },
+      minio: {
+        enabled: document.getElementById('service-minio').checked
+      }
+    };
+    
+    formData.append('services', JSON.stringify(services));
+    
+    // Wysłanie danych do API
+    fetch('/api/projects', {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.status) {
+        window.location.href = '/projects/' + data.data.id;
+      } else {
+        alert('Błąd: ' + data.message);
+      }
+    })
+    .catch(error => {
+      alert('Wystąpił błąd: ' + error);
+    });
+  });
+  
+  function cancelNewProject() {
+    window.location.href = '/projects';
+  }
+</script>

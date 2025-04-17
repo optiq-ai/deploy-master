@@ -1,0 +1,346 @@
+{{!-- Szablon dla strony ustawień --}}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Ustawienia systemu</h5>
+            </div>
+            <div class="card-body">
+                <form id="settings-form">
+                    <h5 class="mb-3">Środowiska</h5>
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="enable-dev" {{#if settings.ENABLE_DEV}}checked{{/if}}>
+                                <label class="form-check-label" for="enable-dev">Development</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="enable-test" {{#if settings.ENABLE_TEST}}checked{{/if}}>
+                                <label class="form-check-label" for="enable-test">Test</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="enable-prod" {{#if settings.ENABLE_PROD}}checked{{/if}}>
+                                <label class="form-check-label" for="enable-prod">Production</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h5 class="mb-3">Komponenty podstawowe</h5>
+                    <div class="mb-3">
+                        <label for="orchestrator-port" class="form-label">Port Orkiestratora</label>
+                        <input type="number" class="form-control" id="orchestrator-port" value="{{settings.ORCHESTRATOR_PORT}}">
+                    </div>
+                    
+                    <h5 class="mb-3">Komponenty opcjonalne</h5>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="enable-db" {{#if settings.ENABLE_DB}}checked{{/if}}>
+                                <label class="form-check-label" for="enable-db">Baza danych</label>
+                            </div>
+                            <div id="db-options" class="ps-4 mb-3" {{#unless settings.ENABLE_DB}}style="display: none;"{{/unless}}>
+                                <div class="mb-2">
+                                    <label for="db-type" class="form-label">Typ bazy danych</label>
+                                    <select class="form-select" id="db-type">
+                                        <option value="postgres" {{#if (eq settings.DB_TYPE "postgres")}}selected{{/if}}>PostgreSQL</option>
+                                        <option value="mysql" {{#if (eq settings.DB_TYPE "mysql")}}selected{{/if}}>MySQL</option>
+                                        <option value="mongodb" {{#if (eq settings.DB_TYPE "mongodb")}}selected{{/if}}>MongoDB</option>
+                                    </select>
+                                </div>
+                                <div class="mb-2">
+                                    <label for="db-user" class="form-label">Użytkownik</label>
+                                    <input type="text" class="form-control" id="db-user" value="{{settings.DB_USER}}">
+                                </div>
+                                <div class="mb-2">
+                                    <label for="db-password" class="form-label">Hasło</label>
+                                    <input type="password" class="form-control" id="db-password" value="{{settings.DB_PASSWORD}}">
+                                </div>
+                                <div class="mb-2">
+                                    <label for="db-name" class="form-label">Nazwa bazy</label>
+                                    <input type="text" class="form-control" id="db-name" value="{{settings.DB_NAME}}">
+                                </div>
+                                <div class="mb-2">
+                                    <label for="db-port" class="form-label">Port</label>
+                                    <input type="number" class="form-control" id="db-port" value="{{settings.DB_PORT}}">
+                                </div>
+                            </div>
+                            
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="enable-redis" {{#if settings.ENABLE_REDIS}}checked{{/if}}>
+                                <label class="form-check-label" for="enable-redis">Redis</label>
+                            </div>
+                            <div id="redis-options" class="ps-4 mb-3" {{#unless settings.ENABLE_REDIS}}style="display: none;"{{/unless}}>
+                                <div class="mb-2">
+                                    <label for="redis-port" class="form-label">Port</label>
+                                    <input type="number" class="form-control" id="redis-port" value="{{settings.REDIS_PORT}}">
+                                </div>
+                                <div class="mb-2">
+                                    <label for="redis-password" class="form-label">Hasło</label>
+                                    <input type="password" class="form-control" id="redis-password" value="{{settings.REDIS_PASSWORD}}">
+                                </div>
+                            </div>
+                            
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="enable-rabbitmq" {{#if settings.ENABLE_RABBITMQ}}checked{{/if}}>
+                                <label class="form-check-label" for="enable-rabbitmq">RabbitMQ</label>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="enable-monitoring" {{#if settings.ENABLE_MONITORING}}checked{{/if}}>
+                                <label class="form-check-label" for="enable-monitoring">Monitoring</label>
+                            </div>
+                            
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="enable-mailhog" {{#if settings.ENABLE_MAILHOG}}checked{{/if}}>
+                                <label class="form-check-label" for="enable-mailhog">MailHog</label>
+                            </div>
+                            
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="enable-minio" {{#if settings.ENABLE_MINIO}}checked{{/if}}>
+                                <label class="form-check-label" for="enable-minio">MinIO (S3)</label>
+                            </div>
+                            <div id="minio-options" class="ps-4 mb-3" {{#unless settings.ENABLE_MINIO}}style="display: none;"{{/unless}}>
+                                <div class="mb-2">
+                                    <label for="minio-user" class="form-label">Użytkownik</label>
+                                    <input type="text" class="form-control" id="minio-user" value="{{settings.MINIO_ROOT_USER}}">
+                                </div>
+                                <div class="mb-2">
+                                    <label for="minio-password" class="form-label">Hasło</label>
+                                    <input type="password" class="form-control" id="minio-password" value="{{settings.MINIO_ROOT_PASSWORD}}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h5 class="mb-3">Konfiguracja Traefik</h5>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="enable-traefik" {{#if settings.ENABLE_TRAEFIK}}checked{{/if}}>
+                            <label class="form-check-label" for="enable-traefik">Włącz Traefik</label>
+                        </div>
+                    </div>
+                    <div id="traefik-options" class="ps-4 mb-4" {{#unless settings.ENABLE_TRAEFIK}}style="display: none;"{{/unless}}>
+                        <div class="mb-2">
+                            <label for="traefik-dashboard-port" class="form-label">Port dashboardu</label>
+                            <input type="number" class="form-control" id="traefik-dashboard-port" value="{{settings.TRAEFIK_DASHBOARD_PORT}}">
+                        </div>
+                        <div class="mb-2">
+                            <label for="cloudflare-email" class="form-label">Email Cloudflare</label>
+                            <input type="email" class="form-control" id="cloudflare-email" value="{{settings.CLOUDFLARE_EMAIL}}">
+                        </div>
+                        <div class="mb-2">
+                            <label for="cloudflare-api-key" class="form-label">Klucz API Cloudflare</label>
+                            <input type="password" class="form-control" id="cloudflare-api-key" value="{{settings.CLOUDFLARE_API_KEY}}">
+                        </div>
+                    </div>
+                    
+                    <h5 class="mb-3">Konfiguracja logowania</h5>
+                    <div class="mb-3">
+                        <label for="log-level" class="form-label">Poziom logowania</label>
+                        <select class="form-select" id="log-level">
+                            <option value="debug" {{#if (eq settings.LOG_LEVEL "debug")}}selected{{/if}}>Debug</option>
+                            <option value="info" {{#if (eq settings.LOG_LEVEL "info")}}selected{{/if}}>Info</option>
+                            <option value="warn" {{#if (eq settings.LOG_LEVEL "warn")}}selected{{/if}}>Warn</option>
+                            <option value="error" {{#if (eq settings.LOG_LEVEL "error")}}selected{{/if}}>Error</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="enable-log-rotation" {{#if settings.ENABLE_LOG_ROTATION}}checked{{/if}}>
+                            <label class="form-check-label" for="enable-log-rotation">Włącz rotację logów</label>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                        <button type="button" class="btn btn-secondary me-md-2" onclick="resetSettings()">Resetuj</button>
+                        <button type="submit" class="btn btn-primary">Zapisz ustawienia</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Akcje</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-primary" onclick="applySettings()">Zastosuj ustawienia</button>
+                    <button class="btn btn-outline-secondary" onclick="restartServices()">Zrestartuj usługi</button>
+                    <button class="btn btn-outline-danger" onclick="resetToDefault()">Przywróć ustawienia domyślne</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h5>Pomoc</h5>
+            </div>
+            <div class="card-body">
+                <p>Konfiguracja systemu DeployMaster pozwala na dostosowanie działania wszystkich komponentów.</p>
+                <p>Zmiany w ustawieniach wymagają restartu usług, aby zostały zastosowane.</p>
+                <p>Aby włączyć lub wyłączyć komponenty, użyj przełączników obok ich nazw.</p>
+                <p>Więcej informacji znajdziesz w <a href="/docs/settings">dokumentacji ustawień</a>.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Obsługa formularza
+    document.getElementById('settings-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const settings = {
+            // Środowiska
+            ENABLE_DEV: document.getElementById('enable-dev').checked ? 1 : 0,
+            ENABLE_TEST: document.getElementById('enable-test').checked ? 1 : 0,
+            ENABLE_PROD: document.getElementById('enable-prod').checked ? 1 : 0,
+            
+            // Komponenty podstawowe
+            ORCHESTRATOR_PORT: document.getElementById('orchestrator-port').value,
+            
+            // Komponenty opcjonalne
+            ENABLE_DB: document.getElementById('enable-db').checked ? 1 : 0,
+            DB_TYPE: document.getElementById('db-type').value,
+            DB_USER: document.getElementById('db-user').value,
+            DB_PASSWORD: document.getElementById('db-password').value,
+            DB_NAME: document.getElementById('db-name').value,
+            DB_PORT: document.getElementById('db-port').value,
+            
+            ENABLE_REDIS: document.getElementById('enable-redis').checked ? 1 : 0,
+            REDIS_PORT: document.getElementById('redis-port').value,
+            REDIS_PASSWORD: document.getElementById('redis-password').value,
+            
+            ENABLE_RABBITMQ: document.getElementById('enable-rabbitmq').checked ? 1 : 0,
+            
+            ENABLE_MONITORING: document.getElementById('enable-monitoring').checked ? 1 : 0,
+            
+            ENABLE_MAILHOG: document.getElementById('enable-mailhog').checked ? 1 : 0,
+            
+            ENABLE_MINIO: document.getElementById('enable-minio').checked ? 1 : 0,
+            MINIO_ROOT_USER: document.getElementById('minio-user').value,
+            MINIO_ROOT_PASSWORD: document.getElementById('minio-password').value,
+            
+            // Konfiguracja Traefik
+            ENABLE_TRAEFIK: document.getElementById('enable-traefik').checked ? 1 : 0,
+            TRAEFIK_DASHBOARD_PORT: document.getElementById('traefik-dashboard-port').value,
+            CLOUDFLARE_EMAIL: document.getElementById('cloudflare-email').value,
+            CLOUDFLARE_API_KEY: document.getElementById('cloudflare-api-key').value,
+            
+            // Konfiguracja logowania
+            LOG_LEVEL: document.getElementById('log-level').value,
+            ENABLE_LOG_ROTATION: document.getElementById('enable-log-rotation').checked ? 1 : 0
+        };
+        
+        // Wysłanie ustawień do API
+        fetch('/api/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(settings)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status) {
+                alert('Ustawienia zostały zapisane. Aby zastosować zmiany, kliknij "Zastosuj ustawienia".');
+            } else {
+                alert('Błąd: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Wystąpił błąd: ' + error);
+        });
+    });
+    
+    // Obsługa przełączników
+    document.getElementById('enable-db').addEventListener('change', function() {
+        document.getElementById('db-options').style.display = this.checked ? 'block' : 'none';
+    });
+    
+    document.getElementById('enable-redis').addEventListener('change', function() {
+        document.getElementById('redis-options').style.display = this.checked ? 'block' : 'none';
+    });
+    
+    document.getElementById('enable-minio').addEventListener('change', function() {
+        document.getElementById('minio-options').style.display = this.checked ? 'block' : 'none';
+    });
+    
+    document.getElementById('enable-traefik').addEventListener('change', function() {
+        document.getElementById('traefik-options').style.display = this.checked ? 'block' : 'none';
+    });
+    
+    // Funkcje dla przycisków akcji
+    function applySettings() {
+        if (confirm('Czy na pewno chcesz zastosować ustawienia? Może to wymagać restartu niektórych usług.')) {
+            fetch('/api/settings/apply', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status) {
+                    alert('Ustawienia zostały zastosowane.');
+                } else {
+                    alert('Błąd: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Wystąpił błąd: ' + error);
+            });
+        }
+    }
+    
+    function restartServices() {
+        if (confirm('Czy na pewno chcesz zrestartować wszystkie usługi?')) {
+            fetch('/api/services/restart', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status) {
+                    alert('Usługi zostały zrestartowane.');
+                } else {
+                    alert('Błąd: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Wystąpił błąd: ' + error);
+            });
+        }
+    }
+    
+    function resetToDefault() {
+        if (confirm('Czy na pewno chcesz przywrócić ustawienia domyślne? Wszystkie zmiany zostaną utracone.')) {
+            fetch('/api/settings/reset', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status) {
+                    alert('Ustawienia zostały przywrócone do wartości domyślnych. Strona zostanie odświeżona.');
+                    window.location.reload();
+                } else {
+                    alert('Błąd: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Wystąpił błąd: ' + error);
+            });
+        }
+    }
+    
+    function resetSettings() {
+        if (confirm('Czy na pewno chcesz zresetować formularz? Niezapisane zmiany zostaną utracone.')) {
+            window.location.reload();
+        }
+    }
+</script>

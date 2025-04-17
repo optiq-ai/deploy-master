@@ -1,0 +1,121 @@
+http:
+  routers:
+    # Router dla Orkiestratora
+    orchestrator:
+      rule: "Host(`orchestrator.{{ env "DOMAIN" | default "localhost" }}`)"
+      service: orchestrator
+      entryPoints:
+        - websecure
+      middlewares:
+        - secure-headers
+        - compress
+      tls:
+        certResolver: cloudflare
+    
+    # Router dla Grafana
+    grafana:
+      rule: "Host(`grafana.{{ env "DOMAIN" | default "localhost" }}`)"
+      service: grafana
+      entryPoints:
+        - websecure
+      middlewares:
+        - secure-headers
+        - compress
+      tls:
+        certResolver: cloudflare
+    
+    # Router dla Prometheus
+    prometheus:
+      rule: "Host(`prometheus.{{ env "DOMAIN" | default "localhost" }}`)"
+      service: prometheus
+      entryPoints:
+        - websecure
+      middlewares:
+        - secure-headers
+        - compress
+      tls:
+        certResolver: cloudflare
+    
+    # Router dla MailHog
+    mailhog:
+      rule: "Host(`mail.{{ env "DOMAIN" | default "localhost" }}`)"
+      service: mailhog
+      entryPoints:
+        - websecure
+      middlewares:
+        - secure-headers
+        - compress
+      tls:
+        certResolver: cloudflare
+    
+    # Router dla MinIO API
+    minio-api:
+      rule: "Host(`s3.{{ env "DOMAIN" | default "localhost" }}`)"
+      service: minio-api
+      entryPoints:
+        - websecure
+      middlewares:
+        - secure-headers
+      tls:
+        certResolver: cloudflare
+    
+    # Router dla MinIO Console
+    minio-console:
+      rule: "Host(`s3-console.{{ env "DOMAIN" | default "localhost" }}`)"
+      service: minio-console
+      entryPoints:
+        - websecure
+      middlewares:
+        - secure-headers
+        - compress
+      tls:
+        certResolver: cloudflare
+    
+    # Router dla Traefik Dashboard
+    dashboard:
+      rule: "Host(`traefik.{{ env "DOMAIN" | default "localhost" }}`)"
+      service: api@internal
+      entryPoints:
+        - websecure
+      middlewares:
+        - secure-headers
+        - auth
+      tls:
+        certResolver: cloudflare
+
+  services:
+    # Serwis dla Orkiestratora
+    orchestrator:
+      loadBalancer:
+        servers:
+          - url: "http://orchestrator:4000"
+    
+    # Serwis dla Grafana
+    grafana:
+      loadBalancer:
+        servers:
+          - url: "http://grafana:3000"
+    
+    # Serwis dla Prometheus
+    prometheus:
+      loadBalancer:
+        servers:
+          - url: "http://prometheus:9090"
+    
+    # Serwis dla MailHog
+    mailhog:
+      loadBalancer:
+        servers:
+          - url: "http://mailhog:8025"
+    
+    # Serwis dla MinIO API
+    minio-api:
+      loadBalancer:
+        servers:
+          - url: "http://minio:9000"
+    
+    # Serwis dla MinIO Console
+    minio-console:
+      loadBalancer:
+        servers:
+          - url: "http://minio:9001"

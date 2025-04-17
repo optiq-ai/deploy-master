@@ -1,0 +1,76 @@
+{{!-- Szablon dla strony statusu projektu --}}
+<div class="card">
+  <div class="card-header">
+    <h5>Status projektu: {{name}}</h5>
+  </div>
+  <div class="card-body">
+    <div class="mb-3">
+      <strong>ID projektu:</strong> {{id}}
+    </div>
+    <div class="mb-3">
+      <strong>Typ projektu:</strong> {{type}}
+    </div>
+    <div class="mb-3">
+      <strong>URL projektu:</strong> <a href="{{url}}" target="_blank">{{url}}</a>
+    </div>
+    <div class="mb-3">
+      <strong>Data deploymentu:</strong> {{deployedAt}}
+    </div>
+    
+    <h5 class="mt-4">Uruchomione kontenery</h5>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Nazwa</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each containers}}
+        <tr>
+          <td>{{name}}</td>
+          <td>
+            <span class="badge bg-{{#if (eq state "running")}}success{{else}}danger{{/if}}">
+              {{status}}
+            </span>
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    
+    <h5 class="mt-4">Włączone usługi</h5>
+    <ul class="list-group">
+      {{#if services.db.enabled}}
+      <li class="list-group-item">
+        Baza danych ({{services.db.type}})
+        <div class="small">
+          Użytkownik: {{services.db.user}}, Baza: {{services.db.name}}
+        </div>
+      </li>
+      {{/if}}
+      
+      {{#if services.redis.enabled}}
+      <li class="list-group-item">Redis</li>
+      {{/if}}
+      
+      {{#if services.monitoring.enabled}}
+      <li class="list-group-item">Monitoring (Prometheus + Grafana)</li>
+      {{/if}}
+      
+      {{#if services.mailhog.enabled}}
+      <li class="list-group-item">MailHog</li>
+      {{/if}}
+      
+      {{#if services.minio.enabled}}
+      <li class="list-group-item">MinIO (S3)</li>
+      {{/if}}
+    </ul>
+    
+    <div class="mt-4">
+      <button class="btn btn-danger" onclick="stopProject('{{id}}')">Zatrzymaj projekt</button>
+      <button class="btn btn-primary" onclick="restartProject('{{id}}')">Zrestartuj projekt</button>
+      <button class="btn btn-secondary" onclick="viewLogs('{{id}}')">Zobacz logi</button>
+    </div>
+  </div>
+</div>

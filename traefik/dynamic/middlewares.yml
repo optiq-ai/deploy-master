@@ -1,0 +1,30 @@
+http:
+  middlewares:
+    # Middleware dla nagłówków bezpieczeństwa
+    secure-headers:
+      headers:
+        frameDeny: true
+        sslRedirect: true
+        browserXssFilter: true
+        contentTypeNosniff: true
+        forceSTSHeader: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 31536000
+        customFrameOptionsValue: "SAMEORIGIN"
+    
+    # Middleware dla kompresji
+    compress:
+      compress: {}
+    
+    # Middleware dla rate limitingu
+    rate-limit:
+      rateLimit:
+        average: 100
+        burst: 50
+    
+    # Middleware dla przekierowań
+    redirect-to-https:
+      redirectScheme:
+        scheme: https
+        permanent: true

@@ -1,0 +1,234 @@
+{{!-- Szablon dla strony głównej --}}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>DeployMaster - Orkiestrator</h5>
+            </div>
+            <div class="card-body">
+                <p class="lead">Witaj w systemie DeployMaster - kompleksowym rozwiązaniu do automatycznego deploymentu stron www i projektów React.</p>
+                
+                <p>DeployMaster umożliwia:</p>
+                <ul>
+                    <li>Automatyczną instalację pełnego stacka technologicznego</li>
+                    <li>Prosty upload projektów (HTML lub React)</li>
+                    <li>Automatyczne wykrywanie typu projektu i budowanie</li>
+                    <li>Elastyczne włączanie/wyłączanie komponentów</li>
+                    <li>Wsparcie dla różnych środowisk (dev/test/prod)</li>
+                </ul>
+                
+                <div class="d-grid gap-2 d-md-flex justify-content-md-start mt-4">
+                    <a href="/projects" class="btn btn-primary me-md-2">Przeglądaj projekty</a>
+                    <a href="/projects/new" class="btn btn-success">Utwórz nowy projekt</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5>Status systemu</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <strong>Wersja:</strong> 1.0.0
+                        </div>
+                        <div class="mb-3">
+                            <strong>Status:</strong> <span class="badge bg-success">Aktywny</span>
+                        </div>
+                        <div class="mb-3">
+                            <strong>Liczba projektów:</strong> <span id="projects-count">...</span>
+                        </div>
+                        <div class="mb-3">
+                            <strong>Użycie CPU:</strong> <span id="cpu-usage">...</span>
+                        </div>
+                        <div class="mb-3">
+                            <strong>Użycie pamięci:</strong> <span id="memory-usage">...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5>Szybkie akcje</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-outline-primary" onclick="checkSystemStatus()">Sprawdź status systemu</button>
+                            <button class="btn btn-outline-secondary" onclick="restartOrchestrator()">Zrestartuj Orkiestrator</button>
+                            <button class="btn btn-outline-info" onclick="viewSystemLogs()">Zobacz logi systemowe</button>
+                            <button class="btn btn-outline-warning" onclick="cleanupSystem()">Wyczyść nieużywane zasoby</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Ostatnie aktywności</h5>
+            </div>
+            <div class="card-body">
+                <div id="activities-list" class="list-group">
+                    <div class="text-center py-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Ładowanie...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h5>Dokumentacja</h5>
+            </div>
+            <div class="card-body">
+                <p>Potrzebujesz pomocy? Sprawdź naszą dokumentację:</p>
+                <div class="list-group">
+                    <a href="/docs/getting-started" class="list-group-item list-group-item-action">Pierwsze kroki</a>
+                    <a href="/docs/projects" class="list-group-item list-group-item-action">Zarządzanie projektami</a>
+                    <a href="/docs/services" class="list-group-item list-group-item-action">Konfiguracja usług</a>
+                    <a href="/docs/troubleshooting" class="list-group-item list-group-item-action">Rozwiązywanie problemów</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Funkcja do ładowania liczby projektów
+    function loadProjectsCount() {
+        fetch('/api/projects')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status) {
+                    document.getElementById('projects-count').textContent = data.data.length;
+                } else {
+                    document.getElementById('projects-count').textContent = 'Błąd';
+                }
+            })
+            .catch(error => {
+                document.getElementById('projects-count').textContent = 'Błąd';
+            });
+    }
+    
+    // Funkcja do ładowania użycia zasobów
+    function loadResourceUsage() {
+        fetch('/api/system/resources')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status) {
+                    document.getElementById('cpu-usage').textContent = data.data.cpu + '%';
+                    document.getElementById('memory-usage').textContent = data.data.memory;
+                } else {
+                    document.getElementById('cpu-usage').textContent = 'Niedostępne';
+                    document.getElementById('memory-usage').textContent = 'Niedostępne';
+                }
+            })
+            .catch(error => {
+                document.getElementById('cpu-usage').textContent = 'Niedostępne';
+                document.getElementById('memory-usage').textContent = 'Niedostępne';
+            });
+    }
+    
+    // Funkcja do ładowania ostatnich aktywności
+    function loadActivities() {
+        fetch('/api/system/activities')
+            .then(response => response.json())
+            .then(data => {
+                const activitiesList = document.getElementById('activities-list');
+                
+                if (data.status && data.data.length > 0) {
+                    activitiesList.innerHTML = '';
+                    
+                    data.data.forEach(activity => {
+                        const item = document.createElement('div');
+                        item.className = 'list-group-item';
+                        
+                        const time = document.createElement('small');
+                        time.className = 'text-muted d-block';
+                        time.textContent = new Date(activity.timestamp).toLocaleString();
+                        
+                        const text = document.createElement('div');
+                        text.textContent = activity.message;
+                        
+                        item.appendChild(time);
+                        item.appendChild(text);
+                        activitiesList.appendChild(item);
+                    });
+                } else {
+                    activitiesList.innerHTML = '<div class="text-center py-3">Brak aktywności</div>';
+                }
+            })
+            .catch(error => {
+                document.getElementById('activities-list').innerHTML = '<div class="text-center py-3">Błąd ładowania aktywności</div>';
+            });
+    }
+    
+    // Funkcje dla przycisków szybkich akcji
+    function checkSystemStatus() {
+        alert('Sprawdzanie statusu systemu...');
+        loadProjectsCount();
+        loadResourceUsage();
+        loadActivities();
+    }
+    
+    function restartOrchestrator() {
+        if (confirm('Czy na pewno chcesz zrestartować Orkiestrator?')) {
+            fetch('/api/system/restart', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status) {
+                    alert('Orkiestrator zostanie zrestartowany. Strona odświeży się automatycznie.');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 5000);
+                } else {
+                    alert('Błąd: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Wystąpił błąd: ' + error);
+            });
+        }
+    }
+    
+    function viewSystemLogs() {
+        window.location.href = '/logs';
+    }
+    
+    function cleanupSystem() {
+        if (confirm('Czy na pewno chcesz wyczyścić nieużywane zasoby?')) {
+            fetch('/api/system/cleanup', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status) {
+                    alert('Nieużywane zasoby zostały wyczyszczone.');
+                    loadResourceUsage();
+                } else {
+                    alert('Błąd: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Wystąpił błąd: ' + error);
+            });
+        }
+    }
+    
+    // Ładowanie danych przy starcie
+    document.addEventListener('DOMContentLoaded', function() {
+        loadProjectsCount();
+        loadResourceUsage();
+        loadActivities();
+    });
+</script>

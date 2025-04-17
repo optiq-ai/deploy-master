@@ -1,0 +1,42 @@
+{{!-- Szablon dla listy projektów --}}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h5>Zdeployowane projekty</h5>
+    <button class="btn btn-primary btn-sm" onclick="newProject()">Nowy projekt</button>
+  </div>
+  <div class="card-body">
+    {{#if projects.length}}
+      <div class="list-group">
+        {{#each projects}}
+          <a href="/projects/{{id}}" class="list-group-item list-group-item-action">
+            <div class="d-flex w-100 justify-content-between">
+              <h5 class="mb-1">{{name}}</h5>
+              <small>{{formatDate deployedAt}}</small>
+            </div>
+            <p class="mb-1">Typ: {{type}}, URL: {{url}}</p>
+            <small>
+              <span class="badge {{#if running}}bg-success{{else}}bg-danger{{/if}}">
+                {{#if running}}Uruchomiony{{else}}Zatrzymany{{/if}}
+              </span>
+            </small>
+          </a>
+        {{/each}}
+      </div>
+    {{else}}
+      <div class="alert alert-info">
+        Brak zdeployowanych projektów. Kliknij "Nowy projekt", aby utworzyć pierwszy.
+      </div>
+    {{/if}}
+  </div>
+</div>
+
+<script>
+  function newProject() {
+    window.location.href = '/projects/new';
+  }
+  
+  function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleString();
+  }
+</script>

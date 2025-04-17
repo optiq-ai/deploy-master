@@ -1,0 +1,297 @@
+version: '3.8'
+
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # Orkiestrator - serwis do uploadu i deployu
+  orchestrator:
+    build:
+      context: ./orchestrator
+    container_name: deploy-orchestrator
+    restart: unless-stopped
+    ports:
+      - "${ORCHESTRATOR_PORT:-4000}:4000"
+    volumes:
+      - ./orchestrator:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - deploy-network
+    logging: *default-logging
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.orchestrator.rule=Host(`orchestrator.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.orchestrator.entrypoints=websecure"
+      - "traefik.http.routers.orchestrator.tls.certresolver=cloudflare"
+      - "traefik.http.services.orchestrator.loadbalancer.server.port=4000"
+
+  # Ruchownik - Traefik jako reverse proxy
+  traefik:
+    image: traefik:v2.6
+    container_name: deploy-traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "${TRAEFIK_DASHBOARD_PORT:-8080}:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic
+      - traefik-acme:/etc/traefik/acme
+    networks:
+      - deploy-network
+    environment:
+      - CLOUDFLARE_EMAIL=${CLOUDFLARE_EMAIL}
+      - CLOUDFLARE_API_KEY=${CLOUDFLARE_API_KEY}
+    logging: *default-logging
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.tls.certresolver=cloudflare"
+      - "traefik.http.routers.dashboard.middlewares=auth"
+      - "traefik.http.middlewares.auth.basicauth.users=${TRAEFIK_DASHBOARD_AUTH:-admin:$$apr1$$talBPKvT$$1oJK8JwQdV3FM2xIGiv871}"
+
+  # Nadzorca - Monitoring
+  prometheus:
+    image: prom/prometheus:v2.33.1
+    container_name: deploy-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - deploy-network
+    logging: *default-logging
+    profiles:
+      - monitoring
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls.certresolver=cloudflare"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+
+  grafana:
+    image: grafana/grafana:8.4.3
+    container_name: deploy-grafana
+    restart: unless-stopped
+    volumes:
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    networks:
+      - deploy-network
+    logging: *default-logging
+    profiles:
+      - monitoring
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=cloudflare"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+  node-exporter:
+    image: prom/node-exporter:v1.3.1
+    container_name: deploy-node-exporter
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - deploy-network
+    logging: *default-logging
+    profiles:
+      - monitoring
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.44.0
+    container_name: deploy-cadvisor
+    restart: unless-stopped
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - deploy-network
+    logging: *default-logging
+    profiles:
+      - monitoring
+
+  # Bazy danych
+  postgres:
+    image: postgres:14-alpine
+    container_name: deploy-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${DB_USER:-dbuser}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-dbpassword}
+      - POSTGRES_DB=${DB_NAME:-appdb}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    networks:
+      - deploy-network
+    logging: *default-logging
+    profiles:
+      - db
+      - postgres
+
+  mysql:
+    image: mysql:8
+    container_name: deploy-mysql
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_PASSWORD:-dbpassword}
+      - MYSQL_DATABASE=${DB_NAME:-appdb}
+      - MYSQL_USER=${DB_USER:-dbuser}
+      - MYSQL_PASSWORD=${DB_PASSWORD:-dbpassword}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    networks:
+      - deploy-network
+    logging: *default-logging
+    profiles:
+      - db
+      - mysql
+
+  mongodb:
+    image: mongo:5
+    container_name: deploy-mongodb
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${DB_USER:-dbuser}
+      - MONGO_INITDB_ROOT_PASSWORD=${DB_PASSWORD:-dbpassword}
+    volumes:
+      - mongodb-data:/data/db
+    ports:
+      - "${DB_PORT:-27017}:27017"
+    networks:
+      - deploy-network
+    logging: *default-logging
+    profiles:
+      - db
+      - mongodb
+
+  # Cache - Redis
+  redis:
+    image: redis:alpine
+    container_name: deploy-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redispassword}
+    volumes:
+      - redis-data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    networks:
+      - deploy-network
+    logging: *default-logging
+    profiles:
+      - redis
+
+  # Kolejki - RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: deploy-rabbitmq
+    restart: unless-stopped
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-rabbitmq}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-rabbitmqpassword}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    networks:
+      - deploy-network
+    logging: *default-logging
+    profiles:
+      - rabbitmq
+
+  # Narzędzia mail - MailHog
+  mailhog:
+    image: mailhog/mailhog
+    container_name: deploy-mailhog
+    restart: unless-stopped
+    ports:
+      - "${MAILHOG_SMTP_PORT:-1025}:1025"
+      - "${MAILHOG_UI_PORT:-8025}:8025"
+    networks:
+      - deploy-network
+    logging: *default-logging
+    profiles:
+      - mailhog
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mailhog.rule=Host(`mail.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.mailhog.entrypoints=websecure"
+      - "traefik.http.routers.mailhog.tls.certresolver=cloudflare"
+      - "traefik.http.services.mailhog.loadbalancer.server.port=8025"
+
+  # Storage - MinIO
+  minio:
+    image: minio/minio
+    container_name: deploy-minio
+    restart: unless-stopped
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio-data:/data
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    command: server /data --console-address ":9001"
+    networks:
+      - deploy-network
+    logging: *default-logging
+    profiles:
+      - minio
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.minio-api.rule=Host(`s3.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.minio-api.entrypoints=websecure"
+      - "traefik.http.routers.minio-api.tls.certresolver=cloudflare"
+      - "traefik.http.services.minio-api.loadbalancer.server.port=9000"
+      - "traefik.http.routers.minio-console.rule=Host(`s3-console.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.minio-console.entrypoints=websecure"
+      - "traefik.http.routers.minio-console.tls.certresolver=cloudflare"
+      - "traefik.http.services.minio-console.loadbalancer.server.port=9001"
+
+networks:
+  deploy-network:
+    name: deploy-network
+
+volumes:
+  traefik-acme:
+  prometheus-data:
+  grafana-data:
+  postgres-data:
+  mysql-data:
+  mongodb-data:
+  redis-data:
+  rabbitmq-data:
+  minio-data:

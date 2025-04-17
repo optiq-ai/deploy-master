@@ -1,0 +1,14 @@
+version: '3.8'
+
+# Konfiguracja dla środowiska: dev
+services:
+  orchestrator:
+    environment:
+      - NODE_ENV=dev
+      - LOG_LEVEL=info
+  postgres:
+    profiles: []
+    environment:
+      - POSTGRES_USER=dbuser
+      - POSTGRES_PASSWORD=dbpassword
+      - POSTGRES_DB=appdb
