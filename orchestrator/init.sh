@@ -12,18 +12,26 @@ NC='\033[0m' # No Color
 
 echo -e "${YELLOW}Sprawdzanie środowiska...${NC}"
 
-# Sprawdzenie, czy katalog node_modules istnieje
-if [ ! -d "/app/node_modules" ]; then
-  echo -e "${YELLOW}Instalacja zależności Node.js...${NC}"
-  cd /app && npm install
-  if [ $? -eq 0 ]; then
-    echo -e "${GREEN}Zależności zainstalowane pomyślnie.${NC}"
-  else
-    echo -e "Błąd podczas instalacji zależności. Próba ponownej instalacji z opcją --force..."
-    cd /app && npm install --force
-  fi
+# Usunięcie node_modules jeśli istnieje (czysty start)
+if [ -d "/app/node_modules" ]; then
+  echo -e "${YELLOW}Usuwanie istniejącego katalogu node_modules dla czystej instalacji...${NC}"
+  rm -rf /app/node_modules
+fi
+
+# Instalacja zależności
+echo -e "${YELLOW}Instalacja zależności Node.js...${NC}"
+cd /app && npm install --no-package-lock --no-fund --no-audit --loglevel=error
+if [ $? -eq 0 ]; then
+  echo -e "${GREEN}Zależności zainstalowane pomyślnie.${NC}"
 else
-  echo -e "${GREEN}Katalog node_modules już istnieje.${NC}"
+  echo -e "${YELLOW}Próba ponownej instalacji z opcją --force...${NC}"
+  cd /app && npm install --no-package-lock --no-fund --no-audit --force --loglevel=error
+  if [ $? -eq 0 ]; then
+    echo -e "${GREEN}Zależności zainstalowane pomyślnie z opcją --force.${NC}"
+  else
+    echo -e "${YELLOW}Instalacja indywidualnych pakietów...${NC}"
+    cd /app && npm install express@4.17.3 express-fileupload@1.3.1 handlebars@4.7.7 fs-extra@10.0.1 dotenv@16.0.0 --no-package-lock --no-fund --no-audit --loglevel=error
+  fi
 fi
 
 # Ustawienie odpowiednich uprawnień
@@ -38,10 +46,6 @@ echo -e "${GREEN}Katalogi projektów gotowe.${NC}"
 
 # Wyświetlenie informacji o zainstalowanych pakietach
 echo -e "${YELLOW}Zainstalowane pakiety:${NC}"
-npm list --depth=0
-
-# Wyświetlenie zawartości katalogu node_modules
-echo -e "${YELLOW}Zawartość katalogu node_modules:${NC}"
 ls -la /app/node_modules | head -n 10
 
 echo -e "${GREEN}=== Inicjalizacja zakończona. Uruchamianie aplikacji... ===${NC}"
