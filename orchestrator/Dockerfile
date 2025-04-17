@@ -1,15 +1,19 @@
-# Uproszczony Dockerfile dla Orkiestratora
-FROM node:16-alpine
+# Radykalnie uproszczony Dockerfile dla Orkiestratora
+FROM node:16
 
-# Instalacja podstawowych narzędzi
-RUN apk add --no-cache git curl bash unzip zip python3 make g++
-
-# Utworzenie katalogu aplikacji
+# Ustawienie katalogu roboczego
 WORKDIR /app
 
-# Kopiowanie plików package.json i instalacja zależności
-COPY package.json ./
-RUN npm install
+# Kopiowanie package.json i package-lock.json (jeśli istnieje)
+COPY package*.json ./
+
+# Instalacja zależności z debugowaniem
+RUN echo "Instalacja zależności Node.js..." && \
+    npm install && \
+    echo "Lista zainstalowanych pakietów:" && \
+    npm list --depth=0 && \
+    echo "Zawartość katalogu node_modules:" && \
+    ls -la node_modules
 
 # Kopiowanie kodu źródłowego
 COPY src ./src
@@ -18,7 +22,13 @@ COPY src ./src
 RUN mkdir -p /app/projects /app/deployed
 
 # Upewnienie się, że wszystkie katalogi mają odpowiednie uprawnienia
-RUN chmod -R 755 /app
+RUN chmod -R 777 /app
+
+# Wyświetlenie zawartości katalogu dla debugowania
+RUN echo "Zawartość katalogu /app:" && \
+    ls -la /app && \
+    echo "Zawartość katalogu /app/node_modules:" && \
+    ls -la /app/node_modules | head -n 10
 
 # Ekspozycja portu
 EXPOSE 4000
