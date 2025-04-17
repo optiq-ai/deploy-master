@@ -250,16 +250,16 @@ W sekcji "Monitoring" możesz:
 4. Sprawdź, czy formularz HTML ma atrybut `enctype="multipart/form-data"`
 5. Zrestartuj kontener Orkiestratora: `docker restart deploy-orchestrator`
 
-#### Problem: Błąd JSON.parse podczas deploymentu projektu
+#### Problem: Błąd 404 Not Found dla endpointu /api/deploy
 
-**Przyczyna:** Brak endpointu `/api/projects` do obsługi danych z formularza tworzenia projektu lub niepoprawne parsowanie danych JSON.
+**Przyczyna:** Brak implementacji endpointu `/api/deploy` w pliku `index.js`, który jest wywoływany przez frontend podczas próby deploymentu projektu.
 
 **Rozwiązanie:**
-1. Upewnij się, że endpoint `/api/projects` jest zaimplementowany w pliku `index.js`
-2. Sprawdź, czy parsowanie JSON dla parametru `services` jest zabezpieczone blokiem try-catch
-3. Zweryfikuj, czy formularz w `new-project.hbs` poprawnie serializuje dane usług: `formData.append('services', JSON.stringify(services))`
-4. Jeśli problem nadal występuje, sprawdź logi serwera: `docker logs deploy-orchestrator`
-5. Zrestartuj kontener Orkiestratora: `docker restart deploy-orchestrator`
+1. Upewnij się, że endpoint `/api/deploy` jest zaimplementowany w pliku `index.js`
+2. Sprawdź, czy endpoint poprawnie obsługuje dane przesyłane z formularza w formacie JSON
+3. Zweryfikuj, czy endpoint prawidłowo wywołuje funkcję `deployProject` z modułu `deploy.js`
+4. Sprawdź logi serwera, aby zidentyfikować dokładną przyczynę błędu: `docker logs deploy-orchestrator`
+5. Zrestartuj kontener Orkiestratora po wprowadzeniu zmian: `docker restart deploy-orchestrator`
 
 ### Logi systemowe
 

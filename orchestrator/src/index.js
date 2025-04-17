@@ -198,6 +198,49 @@ app.post('/api/projects', async (req, res) => {
   }
 });
 
+// API do deploymentu projektu
+app.post('/api/deploy', async (req, res) => {
+  try {
+    const { fileName, services } = req.body;
+    
+    if (!fileName) {
+      return res.status(400).json({
+        status: false,
+        message: 'Nie podano nazwy pliku projektu'
+      });
+    }
+    
+    // Ścieżka do pliku projektu
+    const filePath = path.join(__dirname, '..', 'projects', fileName);
+    
+    // Sprawdzenie, czy plik istnieje
+    if (!await fs.pathExists(filePath)) {
+      return res.status(404).json({
+        status: false,
+        message: `Plik projektu ${fileName} nie istnieje`
+      });
+    }
+    
+    console.log(`Rozpoczęcie deploymentu projektu ${fileName}`);
+    
+    // Deployment projektu
+    const deploy = require('./deploy');
+    const projectData = await deploy.deployProject(filePath, services || {});
+    
+    return res.status(200).json({
+      status: true,
+      message: 'Projekt został pomyślnie wdrożony',
+      data: projectData
+    });
+  } catch (err) {
+    console.error(`Błąd podczas deploymentu: ${err.message}`);
+    return res.status(500).json({
+      status: false,
+      message: `Błąd podczas deploymentu: ${err.message}`
+    });
+  }
+});
+
 // Uruchomienie serwera
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Orkiestrator uruchomiony na porcie ${PORT}`);
