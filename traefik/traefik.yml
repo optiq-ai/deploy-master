@@ -13,24 +13,11 @@ api:
 entryPoints:
   web:
     address: ":80"
-    http:
-      redirections:
-        entryPoint:
-          to: websecure
-          scheme: https
   websecure:
     address: ":443"
 
-certificatesResolvers:
-  cloudflare:
-    acme:
-      email: "${CLOUDFLARE_EMAIL}"
-      storage: "/etc/traefik/acme/acme.json"
-      dnsChallenge:
-        provider: cloudflare
-        resolvers:
-          - "1.1.1.1:53"
-          - "8.8.8.8:53"
+# Usunięto przekierowanie HTTP->HTTPS, które powodowało problemy
+# Usunięto resolver cloudflare, który wymagał zmiennych środowiskowych
 
 providers:
   docker:
@@ -46,8 +33,4 @@ accessLog:
   format: json
   bufferingSize: 100
 
-metrics:
-  prometheus:
-    entryPoint: metrics
-    addEntryPointsLabels: true
-    addServicesLabels: true
+# Usunięto sekcję metrics, która powodowała błędy
