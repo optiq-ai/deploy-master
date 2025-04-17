@@ -147,6 +147,57 @@ app.post('/api/upload', async (req, res) => {
   }
 });
 
+// API do tworzenia i deploymentu projektów
+app.post('/api/projects', async (req, res) => {
+  try {
+    if (!req.files || !req.files.file) {
+      return res.status(400).json({ 
+        status: false, 
+        message: 'Nie przesłano pliku projektu' 
+      });
+    }
+
+    const projectFile = req.files.file;
+    const projectName = req.body.name || projectFile.name.replace('.zip', '');
+    const projectType = req.body.type || 'static';
+    const environment = req.body.environment || 'dev';
+    
+    // Bezpieczne parsowanie JSON dla services
+    let services = {};
+    if (req.body.services) {
+      try {
+        services = JSON.parse(req.body.services);
+      } catch (jsonError) {
+        console.error(`Błąd parsowania JSON dla services: ${jsonError.message}`);
+        // Kontynuuj z pustym obiektem services zamiast zwracać błąd
+      }
+    }
+    
+    // Zapisanie pliku projektu
+    const uploadPath = path.join(__dirname, '..', 'projects', projectFile.name);
+    await fs.ensureDir(path.join(__dirname, '..', 'projects'));
+    await projectFile.mv(uploadPath);
+    
+    console.log(`Plik projektu ${projectFile.name} został przesłany`);
+    
+    // Deployment projektu
+    const deploy = require('./deploy');
+    const projectData = await deploy.deployProject(uploadPath, services);
+    
+    return res.status(200).json({
+      status: true,
+      message: 'Projekt został pomyślnie utworzony i wdrożony',
+      data: projectData
+    });
+  } catch (err) {
+    console.error(`Błąd podczas deploymentu: ${err.message}`);
+    return res.status(500).json({
+      status: false,
+      message: `Błąd podczas deploymentu: ${err.message}`
+    });
+  }
+});
+
 // Uruchomienie serwera
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Orkiestrator uruchomiony na porcie ${PORT}`);

@@ -250,15 +250,16 @@ W sekcji "Monitoring" możesz:
 4. Sprawdź, czy formularz HTML ma atrybut `enctype="multipart/form-data"`
 5. Zrestartuj kontener Orkiestratora: `docker restart deploy-orchestrator`
 
-#### Problem: Brak dostępu do interfejsu webowego
+#### Problem: Błąd JSON.parse podczas deploymentu projektu
 
-**Przyczyna:** Problemy z konfiguracją sieci lub Traefik.
+**Przyczyna:** Brak endpointu `/api/projects` do obsługi danych z formularza tworzenia projektu lub niepoprawne parsowanie danych JSON.
 
 **Rozwiązanie:**
-1. Sprawdź, czy wszystkie kontenery działają: `docker-compose ps`
-2. Upewnij się, że port 4000 jest dostępny: `curl http://localhost:4000`
-3. Sprawdź logi Traefik: `docker logs deploy-traefik`
-4. Zrestartuj cały stack: `docker-compose down && docker-compose up -d`
+1. Upewnij się, że endpoint `/api/projects` jest zaimplementowany w pliku `index.js`
+2. Sprawdź, czy parsowanie JSON dla parametru `services` jest zabezpieczone blokiem try-catch
+3. Zweryfikuj, czy formularz w `new-project.hbs` poprawnie serializuje dane usług: `formData.append('services', JSON.stringify(services))`
+4. Jeśli problem nadal występuje, sprawdź logi serwera: `docker logs deploy-orchestrator`
+5. Zrestartuj kontener Orkiestratora: `docker restart deploy-orchestrator`
 
 ### Logi systemowe
 
