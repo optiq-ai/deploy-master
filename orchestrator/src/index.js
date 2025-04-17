@@ -5,6 +5,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const dotenv = require('dotenv');
 const fileUpload = require('express-fileupload');
+const helmet = require('helmet');
 
 // Konfiguracja środowiska
 dotenv.config();
@@ -22,6 +23,23 @@ app.use(fileUpload({
   limits: { 
     fileSize: 500 * 1024 * 1024 // 500MB limit
   },
+}));
+
+// Konfiguracja bezpieczeństwa z helmet
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+      imgSrc: ["'self'", "data:", "http://localhost:4000"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", "https://cdn.jsdelivr.net"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    }
+  }
 }));
 
 // Statyczne pliki dla UI

@@ -250,16 +250,35 @@ W sekcji "Monitoring" możesz:
 4. Sprawdź, czy formularz HTML ma atrybut `enctype="multipart/form-data"`
 5. Zrestartuj kontener Orkiestratora: `docker restart deploy-orchestrator`
 
-#### Problem: Błąd 404 Not Found dla endpointu /api/deploy
+#### Problem: Błędy Content Security Policy (CSP) blokujące zasoby
 
-**Przyczyna:** Brak implementacji endpointu `/api/deploy` w pliku `index.js`, który jest wywoływany przez frontend podczas próby deploymentu projektu.
+**Przyczyna:** Brak lub nieprawidłowa konfiguracja nagłówków Content Security Policy w aplikacji, co powoduje blokowanie zasobów takich jak favicon.ico, skrypty czy style.
 
 **Rozwiązanie:**
-1. Upewnij się, że endpoint `/api/deploy` jest zaimplementowany w pliku `index.js`
-2. Sprawdź, czy endpoint poprawnie obsługuje dane przesyłane z formularza w formacie JSON
-3. Zweryfikuj, czy endpoint prawidłowo wywołuje funkcję `deployProject` z modułu `deploy.js`
-4. Sprawdź logi serwera, aby zidentyfikować dokładną przyczynę błędu: `docker logs deploy-orchestrator`
-5. Zrestartuj kontener Orkiestratora po wprowadzeniu zmian: `docker restart deploy-orchestrator`
+1. Zainstaluj pakiet `helmet` do obsługi nagłówków bezpieczeństwa: `npm install helmet --save`
+2. Dodaj konfigurację helmet w pliku `index.js`:
+   ```javascript
+   const helmet = require('helmet');
+   
+   app.use(helmet({
+     contentSecurityPolicy: {
+       directives: {
+         defaultSrc: ["'self'"],
+         scriptSrc: ["'self'", "'unsafe-inline'"],
+         styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+         imgSrc: ["'self'", "data:", "http://localhost:4000"],
+         connectSrc: ["'self'"],
+         fontSrc: ["'self'", "https://cdn.jsdelivr.net"],
+         objectSrc: ["'none'"],
+         mediaSrc: ["'self'"],
+         frameSrc: ["'none'"],
+       }
+     }
+   }));
+   ```
+3. Dostosuj dyrektywy CSP do potrzeb aplikacji, upewniając się, że wszystkie używane zasoby są dozwolone
+4. Zrestartuj kontener Orkiestratora: `docker restart deploy-orchestrator`
+5. Sprawdź w konsoli przeglądarki, czy nadal występują błędy CSP
 
 ### Logi systemowe
 
