@@ -6,6 +6,8 @@ const bodyParser = require('body-parser');
 const dotenv = require('dotenv');
 const fileUpload = require('express-fileupload');
 const helmet = require('helmet');
+const { exec } = require('child_process');
+const findFreePort = require('find-free-port');
 
 // Konfiguracja środowiska
 dotenv.config();
@@ -59,6 +61,131 @@ function safeJsonParse(data, defaultValue = {}) {
   }
 }
 
+// Katalogi projektów
+const PROJECTS_DIR = path.join(__dirname, '..', 'projects');
+const DEPLOYED_DIR = path.join(__dirname, '..', 'deployed');
+
+// Funkcja do deploymentu pojedynczego pliku HTML
+async function deploySingleHtml(htmlFile, htmlContent) {
+  try {
+    console.log(`Rozpoczęcie deploymentu pojedynczego pliku HTML: ${htmlFile}`);
+    
+    // Generowanie unikalnego ID projektu
+    const projectId = `html_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    
+    // Przygotowanie katalogu dla zdeployowanego projektu
+    const deployDir = path.join(DEPLOYED_DIR, projectId);
+    await fs.ensureDir(deployDir);
+    
+    // Zapisanie pliku HTML
+    const htmlPath = path.join(deployDir, 'index.html');
+    await fs.writeFile(htmlPath, htmlContent);
+    
+    console.log(`Plik HTML zapisany w: ${htmlPath}`);
+    
+    // Znalezienie wolnego portu
+    const [freePort] = await findFreePort(8000);
+    console.log(`Przydzielony port: ${freePort}`);
+    
+    // Generowanie konfiguracji NGINX dla statycznej strony
+    const nginxConfPath = path.join(deployDir, 'nginx.conf');
+    const nginxConf = `
+server {
+    listen 80;
+    server_name localhost;
+    root /usr/share/nginx/html;
+    index index.html;
+    
+    # Obsługa routingu
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    
+    # Optymalizacja wydajności
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+    
+    # Nagłówki bezpieczeństwa
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-XSS-Protection "1; mode=block";
+    add_header X-Content-Type-Options "nosniff";
+}
+`;
+    
+    await fs.writeFile(nginxConfPath, nginxConf);
+    
+    // Generowanie docker-compose.override.yml
+    const composeConfig = {
+      version: '3.8',
+      services: {
+        [`app_${projectId}`]: {
+          image: 'nginx:alpine',
+          container_name: `app_${projectId}`,
+          restart: 'unless-stopped',
+          ports: [`${freePort}:80`],
+          volumes: [
+            `${deployDir}:/usr/share/nginx/html`,
+            `${nginxConfPath}:/etc/nginx/conf.d/default.conf`
+          ],
+          networks: ['deploy-network']
+        }
+      },
+      networks: {
+        'deploy-network': {
+          external: true
+        }
+      }
+    };
+    
+    // Zapisanie pliku docker-compose.override.yml
+    await fs.writeJson(
+      path.join(deployDir, 'docker-compose.override.yml'),
+      composeConfig,
+      { spaces: 2 }
+    );
+    
+    // Uruchomienie kontenera
+    await new Promise((resolve, reject) => {
+      const command = `cd ${deployDir} && docker-compose -f docker-compose.override.yml up -d`;
+      
+      exec(command, (error, stdout, stderr) => {
+        if (error) {
+          console.error(`Błąd podczas uruchamiania kontenera: ${error.message}`);
+          return reject(error);
+        }
+        
+        console.log(`Kontener dla projektu ${projectId} został uruchomiony pomyślnie`);
+        console.log(`Stdout: ${stdout}`);
+        
+        if (stderr) {
+          console.warn(`Stderr: ${stderr}`);
+        }
+        
+        resolve();
+      });
+    });
+    
+    // Zapisanie informacji o projekcie
+    const projectData = {
+      id: projectId,
+      name: htmlFile,
+      type: 'html',
+      port: freePort,
+      url: `http://localhost:${freePort}`,
+      deployedAt: new Date().toISOString()
+    };
+    
+    await fs.writeJson(path.join(deployDir, 'project.json'), projectData);
+    
+    console.log(`Deployment pojedynczego pliku HTML zakończony pomyślnie: ${projectId}`);
+    
+    return projectData;
+  } catch (err) {
+    console.error(`Błąd podczas deploymentu pojedynczego pliku HTML: ${err.message}`);
+    throw err;
+  }
+}
+
 // Statyczne pliki dla UI
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -100,6 +227,7 @@ app.get('/', (req, res) => {
           padding: 15px;
           border: 1px solid #e0e0e0;
           border-radius: 5px;
+          margin-bottom: 20px;
         }
         .btn {
           background-color: #3f51b5;
@@ -112,7 +240,57 @@ app.get('/', (req, res) => {
         .btn:hover {
           background-color: #303f9f;
         }
+        .tabs {
+          display: flex;
+          margin-bottom: 20px;
+        }
+        .tab {
+          padding: 10px 15px;
+          cursor: pointer;
+          border: 1px solid #e0e0e0;
+          background-color: #f5f7fa;
+          margin-right: 5px;
+          border-radius: 4px 4px 0 0;
+        }
+        .tab.active {
+          background-color: white;
+          border-bottom: 1px solid white;
+        }
+        .tab-content {
+          display: none;
+        }
+        .tab-content.active {
+          display: block;
+        }
+        textarea {
+          width: 100%;
+          min-height: 200px;
+          margin-bottom: 10px;
+          padding: 10px;
+          border: 1px solid #e0e0e0;
+          border-radius: 4px;
+          font-family: monospace;
+        }
       </style>
+      <script>
+        function showTab(tabId) {
+          // Ukryj wszystkie zakładki
+          document.querySelectorAll('.tab-content').forEach(tab => {
+            tab.classList.remove('active');
+          });
+          
+          // Usuń aktywną klasę ze wszystkich przycisków zakładek
+          document.querySelectorAll('.tab').forEach(tab => {
+            tab.classList.remove('active');
+          });
+          
+          // Pokaż wybraną zakładkę
+          document.getElementById(tabId).classList.add('active');
+          
+          // Dodaj aktywną klasę do przycisku zakładki
+          document.querySelector(\`[onclick="showTab('\${tabId}')"]\`).classList.add('active');
+        }
+      </script>
     </head>
     <body>
       <div class="container">
@@ -122,12 +300,36 @@ app.get('/', (req, res) => {
           <p>Wszystkie komponenty zostały pomyślnie uruchomione.</p>
         </div>
         
-        <div class="upload-form">
-          <h3>Wgraj projekt do deploymentu</h3>
-          <form action="/api/upload" method="post" enctype="multipart/form-data">
-            <input type="file" name="project" required>
-            <button type="submit" class="btn">Wgraj projekt</button>
-          </form>
+        <div class="tabs">
+          <div class="tab active" onclick="showTab('project-tab')">Projekt ZIP</div>
+          <div class="tab" onclick="showTab('html-tab')">Pojedynczy HTML</div>
+        </div>
+        
+        <div id="project-tab" class="tab-content active">
+          <div class="upload-form">
+            <h3>Wgraj projekt do deploymentu</h3>
+            <form action="/api/upload" method="post" enctype="multipart/form-data">
+              <input type="file" name="project" required>
+              <button type="submit" class="btn">Wgraj projekt</button>
+            </form>
+          </div>
+        </div>
+        
+        <div id="html-tab" class="tab-content">
+          <div class="upload-form">
+            <h3>Wgraj pojedynczy plik HTML</h3>
+            <form action="/api/deploy-html" method="post" enctype="multipart/form-data">
+              <input type="file" name="html" accept=".html,.htm" required>
+              <button type="submit" class="btn">Wgraj i zdeployuj HTML</button>
+            </form>
+            
+            <h3>Lub wklej kod HTML</h3>
+            <form action="/api/deploy-html-content" method="post">
+              <textarea name="htmlContent" placeholder="Wklej tutaj kod HTML..." required></textarea>
+              <input type="text" name="fileName" placeholder="Nazwa pliku (np. moja-strona.html)" required>
+              <button type="submit" class="btn">Zdeployuj HTML</button>
+            </form>
+          </div>
         </div>
       </div>
     </body>
@@ -178,6 +380,99 @@ app.post('/api/upload', async (req, res) => {
     return res.status(500).json({
       status: false,
       message: `Błąd podczas uploadu: ${err.message}`
+    });
+  }
+});
+
+// API do deploymentu pojedynczego pliku HTML (upload pliku)
+app.post('/api/deploy-html', async (req, res) => {
+  try {
+    if (!req.files || !req.files.html) {
+      return res.status(400).json({ 
+        status: false, 
+        message: 'Nie przesłano pliku HTML' 
+      });
+    }
+
+    const htmlFile = req.files.html;
+    
+    // Sprawdzenie, czy plik jest HTML
+    if (!htmlFile.name.toLowerCase().endsWith('.html') && !htmlFile.name.toLowerCase().endsWith('.htm')) {
+      return res.status(400).json({
+        status: false,
+        message: 'Przesłany plik nie jest plikiem HTML'
+      });
+    }
+    
+    // Odczytanie zawartości pliku HTML
+    const htmlContent = htmlFile.data.toString('utf8');
+    
+    // Deployment pliku HTML
+    const projectData = await deploySingleHtml(htmlFile.name, htmlContent);
+    
+    return res.status(200).json({
+      status: true,
+      message: 'Plik HTML został pomyślnie zdeployowany',
+      data: projectData
+    });
+  } catch (err) {
+    console.error(`Błąd podczas deploymentu HTML: ${err.message}`);
+    console.error(`Stack: ${err.stack}`);
+    return res.status(500).json({
+      status: false,
+      message: `Błąd podczas deploymentu HTML: ${err.message}`,
+      error: {
+        name: err.name,
+        message: err.message,
+        stack: err.stack
+      }
+    });
+  }
+});
+
+// API do deploymentu zawartości HTML (wklejony kod)
+app.post('/api/deploy-html-content', async (req, res) => {
+  try {
+    const { htmlContent, fileName } = req.body;
+    
+    if (!htmlContent) {
+      return res.status(400).json({
+        status: false,
+        message: 'Nie podano zawartości HTML'
+      });
+    }
+    
+    if (!fileName) {
+      return res.status(400).json({
+        status: false,
+        message: 'Nie podano nazwy pliku'
+      });
+    }
+    
+    // Dodanie rozszerzenia .html, jeśli nie ma
+    const htmlFileName = fileName.toLowerCase().endsWith('.html') || fileName.toLowerCase().endsWith('.htm') 
+      ? fileName 
+      : `${fileName}.html`;
+    
+    // Deployment zawartości HTML
+    const projectData = await deploySingleHtml(htmlFileName, htmlContent);
+    
+    return res.status(200).json({
+      status: true,
+      message: 'Zawartość HTML została pomyślnie zdeployowana',
+      data: projectData
+    });
+  } catch (err) {
+    console.error(`Błąd podczas deploymentu zawartości HTML: ${err.message}`);
+    console.error(`Stack: ${err.stack}`);
+    return res.status(500).json({
+      status: false,
+      message: `Błąd podczas deploymentu zawartości HTML: ${err.message}`,
+      error: {
+        name: err.name,
+        message: err.message,
+        stack: err.stack
+      }
     });
   }
 });
