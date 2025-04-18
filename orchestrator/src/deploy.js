@@ -6,6 +6,9 @@ const winston = require('winston');
 const dotenv = require('dotenv');
 const findFreePort = require('find-free-port');
 const Dockerode = require('dockerode');
+const projectTypeDetector = require('./projectTypeDetector');
+const projectBuilder = require('./projectBuilder');
+const serverConfigurator = require('./serverConfigurator');
 
 // Konfiguracja środowiska
 dotenv.config();
@@ -43,8 +46,10 @@ async function analyzeProject(filePath) {
     // Rozpakowanie projektu
     await extract(filePath, { dir: extractDir });
     
-    // Analiza typu projektu
-    const projectType = await detectProjectType(extractDir);
+    // Analiza typu projektu przy użyciu zaawansowanego detektora
+    const projectType = await projectTypeDetector.detectProjectType(extractDir);
+    
+    logger.info(`Projekt przeanalizowany: ${fileName}, wykryty typ: ${projectType}`);
     
     return {
       id: projectId,
@@ -55,46 +60,6 @@ async function analyzeProject(filePath) {
   } catch (err) {
     logger.error(`Błąd podczas analizy projektu: ${err.message}`);
     throw err;
-  }
-}
-
-// Funkcja do wykrywania typu projektu
-async function detectProjectType(projectDir) {
-  try {
-    // Sprawdzenie, czy to projekt React
-    if (fs.existsSync(path.join(projectDir, 'package.json'))) {
-      const packageJson = require(path.join(projectDir, 'package.json'));
-      
-      if (packageJson.dependencies && 
-         (packageJson.dependencies.react || 
-          packageJson.dependencies.next || 
-          packageJson.dependencies.vue)) {
-        
-        // Sprawdzenie, czy to Next.js
-        if (packageJson.dependencies.next) {
-          return 'nextjs';
-        }
-        
-        // Sprawdzenie, czy to Vue.js
-        if (packageJson.dependencies.vue) {
-          return 'vue';
-        }
-        
-        // Domyślnie React
-        return 'react';
-      }
-    }
-    
-    // Sprawdzenie, czy to statyczna strona HTML
-    if (fs.existsSync(path.join(projectDir, 'index.html'))) {
-      return 'static';
-    }
-    
-    // Domyślnie nieznany typ
-    return 'unknown';
-  } catch (err) {
-    logger.error(`Błąd podczas wykrywania typu projektu: ${err.message}`);
-    return 'unknown';
   }
 }
 
@@ -133,11 +98,14 @@ async function deployProject(filePath, services = {}) {
     const deployDir = path.join(DEPLOYED_DIR, projectInfo.id);
     await fs.ensureDir(deployDir);
     
-    // Budowanie projektu w zależności od typu
-    await buildProject(projectInfo, deployDir);
+    // Budowanie projektu przy użyciu zaawansowanego buildera
+    await projectBuilder.buildProject(projectInfo, deployDir);
+    
+    // Generowanie konfiguracji serwera
+    const serverConfig = await serverConfigurator.generateServerConfig(projectInfo, deployDir, freePort);
     
     // Generowanie docker-compose.override.yml
-    await generateDockerComposeOverride(projectInfo, freePort, servicesObj);
+    await generateDockerComposeOverride(projectInfo, freePort, servicesObj, serverConfig);
     
     // Uruchomienie projektu
     await startProject(projectInfo.id);
@@ -163,131 +131,189 @@ async function deployProject(filePath, services = {}) {
   }
 }
 
-// Funkcja do budowania projektu
-async function buildProject(projectInfo, deployDir) {
-  return new Promise((resolve, reject) => {
-    let buildCommand;
-    
-    switch (projectInfo.type) {
-      case 'react':
-        buildCommand = `cd ${projectInfo.path} && npm install && npm run build && cp -r build/* ${deployDir}`;
-        break;
-      case 'nextjs':
-        buildCommand = `cd ${projectInfo.path} && npm install && npm run build`;
-        break;
-      case 'vue':
-        buildCommand = `cd ${projectInfo.path} && npm install && npm run build && cp -r dist/* ${deployDir}`;
-        break;
-      case 'static':
-        buildCommand = `
-          cp -r ${projectInfo.path}/* ${deployDir} && 
-          cd ${deployDir} && 
-          if [ ! -f index.html ] && [ $(find . -maxdepth 1 -name "*.html" | wc -l) -eq 1 ]; then 
-            HTML_FILE=$(find . -maxdepth 1 -name "*.html" | head -1) && 
-            cp "$HTML_FILE" index.html && 
-            echo "Skopiowano $HTML_FILE jako index.html"; 
-          fi
-        `;
-        break;
-      default:
-        return reject(new Error(`Nieobsługiwany typ projektu: ${projectInfo.type}`));
-    }
-    
-    logger.debug(`Wykonywanie polecenia budowania: ${buildCommand}`);
-    
-    exec(buildCommand, (error, stdout, stderr) => {
-      if (error) {
-        logger.error(`Błąd podczas budowania projektu: ${error.message}`);
-        return reject(error);
-      }
-      
-      logger.info(`Projekt ${projectInfo.name} został zbudowany pomyślnie`);
-      logger.debug(`Stdout: ${stdout}`);
-      
-      if (stderr) {
-        logger.warn(`Stderr: ${stderr}`);
-      }
-      
-      // Sprawdź zawartość katalogu deploymentu
-      try {
-        const deployedFiles = fs.readdirSync(deployDir);
-        logger.debug(`Zawartość katalogu deploymentu: ${deployedFiles.join(', ')}`);
-      } catch (err) {
-        logger.warn(`Nie można odczytać zawartości katalogu deploymentu: ${err.message}`);
-      }
-      
-      resolve();
-    });
-  });
-}
-
 // Funkcja do generowania docker-compose.override.yml
-async function generateDockerComposeOverride(projectInfo, port, services) {
+async function generateDockerComposeOverride(projectInfo, port, services = {}, serverConfig = {}) {
   try {
     logger.info(`Generowanie docker-compose.override.yml dla projektu ${projectInfo.name}`);
-    logger.debug(`Dane usług przekazane do generateDockerComposeOverride: ${JSON.stringify(services)}`);
     
-    const deployDir = path.join(DEPLOYED_DIR, projectInfo.id);
-    
-    // Upewnienie się, że services jest poprawnym obiektem
+    // Upewnienie się, że services jest obiektem
     if (!services || typeof services !== 'object') {
       logger.warn(`Nieprawidłowy format services, używanie pustego obiektu`);
       services = {};
     }
     
-    // Podstawowa konfiguracja dla projektu
-    let composeConfig = {
-      version: '3.8',
-      services: {
-        [`app_${projectInfo.id}`]: {
-          image: getImageForProjectType(projectInfo.type),
-          container_name: `app_${projectInfo.id}`,
-          restart: 'unless-stopped',
-          ports: [`${port}:80`],
-          volumes: [`${deployDir}:/usr/share/nginx/html`],
-          networks: ['deploy-network']
-        }
-      },
-      networks: {
-        'deploy-network': {
-          external: true
-        }
-      }
-    };
+    const deployDir = path.join(DEPLOYED_DIR, projectInfo.id);
     
-    // Dodanie usług w zależności od wybranych opcji
+    // Użycie konfiguracji serwera, jeśli jest dostępna
+    let composeConfig = {};
+    if (serverConfig && serverConfig.dockerComposeConfig) {
+      composeConfig = {
+        version: '3.8',
+        ...serverConfig.dockerComposeConfig,
+        networks: {
+          'deploy-network': {
+            external: true
+          }
+        }
+      };
+    } else {
+      // Podstawowa konfiguracja dla aplikacji
+      composeConfig = {
+        version: '3.8',
+        services: {
+          [`app_${projectInfo.id}`]: {
+            image: getImageForProjectType(projectInfo.type),
+            container_name: `app_${projectInfo.id}`,
+            restart: 'unless-stopped',
+            ports: [`${port}:80`],
+            volumes: [`${deployDir}:/usr/share/nginx/html`],
+            networks: ['deploy-network']
+          }
+        },
+        networks: {
+          'deploy-network': {
+            external: true
+          }
+        }
+      };
+      
+      // Dostosowanie konfiguracji w zależności od typu projektu
+      switch (projectInfo.type) {
+        case 'nextjs':
+          composeConfig.services[`app_${projectInfo.id}`] = {
+            image: 'node:16-alpine',
+            container_name: `app_${projectInfo.id}`,
+            restart: 'unless-stopped',
+            ports: [`${port}:3000`],
+            volumes: [`${deployDir}:/app`],
+            working_dir: '/app',
+            command: ['node', 'server.js'],
+            networks: ['deploy-network']
+          };
+          break;
+          
+        case 'node':
+          composeConfig.services[`app_${projectInfo.id}`] = {
+            image: 'node:16-alpine',
+            container_name: `app_${projectInfo.id}`,
+            restart: 'unless-stopped',
+            ports: [`${port}:3000`],
+            volumes: [`${deployDir}:/app`],
+            working_dir: '/app',
+            command: ['node', 'index.js'],
+            networks: ['deploy-network']
+          };
+          break;
+          
+        case 'php':
+          composeConfig.services[`app_${projectInfo.id}`] = {
+            image: 'php:8.0-apache',
+            container_name: `app_${projectInfo.id}`,
+            restart: 'unless-stopped',
+            ports: [`${port}:80`],
+            volumes: [`${deployDir}:/var/www/html`],
+            networks: ['deploy-network']
+          };
+          break;
+          
+        case 'python':
+          composeConfig.services[`app_${projectInfo.id}`] = {
+            image: 'python:3.9-slim',
+            container_name: `app_${projectInfo.id}`,
+            restart: 'unless-stopped',
+            ports: [`${port}:5000`],
+            volumes: [`${deployDir}:/app`],
+            working_dir: '/app',
+            command: ['sh', '-c', 'source venv/bin/activate && python app.py'],
+            networks: ['deploy-network']
+          };
+          break;
+          
+        default:
+          // Dla projektów statycznych i innych frontendowych używamy NGINX z konfiguracją SPA
+          // Generowanie konfiguracji NGINX dla SPA
+          const nginxConfPath = path.join(deployDir, 'nginx.conf');
+          if (!fs.existsSync(nginxConfPath)) {
+            const nginxConf = `
+server {
+    listen 80;
+    server_name localhost;
+    root /usr/share/nginx/html;
+    index index.html;
+    
+    # Obsługa routingu SPA
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    
+    # Optymalizacja wydajności
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+    
+    # Nagłówki bezpieczeństwa
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-XSS-Protection "1; mode=block";
+    add_header X-Content-Type-Options "nosniff";
+}
+`;
+            
+            await fs.writeFile(nginxConfPath, nginxConf);
+          }
+          
+          composeConfig.services[`app_${projectInfo.id}`] = {
+            image: 'nginx:alpine',
+            container_name: `app_${projectInfo.id}`,
+            restart: 'unless-stopped',
+            ports: [`${port}:80`],
+            volumes: [
+              `${deployDir}:/usr/share/nginx/html`,
+              `${nginxConfPath}:/etc/nginx/conf.d/default.conf`
+            ],
+            networks: ['deploy-network']
+          };
+      }
+    }
+    
+    // Dodanie bazy danych, jeśli jest włączona
     if (services.db && services.db.enabled) {
-      logger.debug(`Konfigurowanie bazy danych typu: ${services.db.type || 'postgres'}`);
-      const dbPort = await findFreePort(5432);
+      const dbType = services.db.type || 'postgres';
+      const dbUser = services.db.user || 'dbuser';
+      const dbPassword = services.db.password || 'dbpassword';
+      const dbName = services.db.name || 'appdb';
+      
+      // Znalezienie wolnego portu dla bazy danych
+      const [dbPort] = await findFreePort(getDbPort(dbType));
       
       composeConfig.services[`db_${projectInfo.id}`] = {
-        image: getDbImage(services.db.type),
+        image: getDbImage(dbType),
         container_name: `db_${projectInfo.id}`,
         restart: 'unless-stopped',
         environment: {
-          POSTGRES_USER: services.db.user || 'dbuser',
-          POSTGRES_PASSWORD: services.db.password || 'dbpassword',
-          POSTGRES_DB: services.db.name || 'appdb',
-          MYSQL_ROOT_PASSWORD: services.db.password || 'dbpassword',
-          MYSQL_DATABASE: services.db.name || 'appdb',
-          MYSQL_USER: services.db.user || 'dbuser',
-          MYSQL_PASSWORD: services.db.password || 'dbpassword',
-          MONGO_INITDB_ROOT_USERNAME: services.db.user || 'dbuser',
-          MONGO_INITDB_ROOT_PASSWORD: services.db.password || 'dbpassword'
+          POSTGRES_USER: dbUser,
+          POSTGRES_PASSWORD: dbPassword,
+          POSTGRES_DB: dbName,
+          MYSQL_ROOT_PASSWORD: dbPassword,
+          MYSQL_USER: dbUser,
+          MYSQL_PASSWORD: dbPassword,
+          MYSQL_DATABASE: dbName,
+          MONGO_INITDB_ROOT_USERNAME: dbUser,
+          MONGO_INITDB_ROOT_PASSWORD: dbPassword
         },
-        ports: [`${dbPort[0]}:${getDbPort(services.db.type)}`],
-        volumes: [`db_data_${projectInfo.id}:/var/lib/postgresql/data`],
+        volumes: [`db_${projectInfo.id}_data:/var/lib/postgresql/data`],
+        ports: [`${dbPort[0]}:${getDbPort(dbType)}`],
         networks: ['deploy-network']
       };
       
       composeConfig.volumes = {
-        [`db_data_${projectInfo.id}`]: {}
+        ...(composeConfig.volumes || {}),
+        [`db_${projectInfo.id}_data`]: {}
       };
     }
     
+    // Dodanie Redis, jeśli jest włączony
     if (services.redis && services.redis.enabled) {
-      logger.debug(`Konfigurowanie Redis`);
-      const redisPort = await findFreePort(6379);
+      // Znalezienie wolnego portu dla Redis
+      const [redisPort] = await findFreePort(6379);
       
       composeConfig.services[`redis_${projectInfo.id}`] = {
         image: 'redis:alpine',

@@ -6,9 +6,10 @@
 3. [Komponenty systemu](#komponenty-systemu)
 4. [Instalacja i konfiguracja](#instalacja-i-konfiguracja)
 5. [Użytkowanie systemu](#użytkowanie-systemu)
-6. [Rozwiązywanie problemów](#rozwiązywanie-problemów)
-7. [Najczęściej zadawane pytania (FAQ)](#najczęściej-zadawane-pytania-faq)
-8. [Historia rozwoju i wyzwania](#historia-rozwoju-i-wyzwania)
+6. [Uniwersalne rozwiązanie do deploymentu](#uniwersalne-rozwiązanie-do-deploymentu)
+7. [Rozwiązywanie problemów](#rozwiązywanie-problemów)
+8. [Najczęściej zadawane pytania (FAQ)](#najczęściej-zadawane-pytania-faq)
+9. [Historia rozwoju i wyzwania](#historia-rozwoju-i-wyzwania)
 
 ## Wprowadzenie
 
@@ -216,6 +217,140 @@ W sekcji "Monitoring" możesz:
 - Przeglądać logi systemowe
 - Konfigurować alerty
 
+## Uniwersalne rozwiązanie do deploymentu
+
+DeployMaster został rozszerzony o uniwersalne rozwiązanie do deploymentu, które umożliwia automatyczne wykrywanie, budowanie i wdrażanie różnych typów projektów. Rozwiązanie to składa się z trzech głównych komponentów:
+
+### 1. Zaawansowane wykrywanie typów projektów
+
+Moduł `projectTypeDetector.js` implementuje wielopoziomową analizę struktury projektu i rozszerzone wykrywanie frameworków.
+
+**Główne funkcje:**
+- Rekurencyjne skanowanie katalogów projektu (do głębokości 3 poziomów)
+- Analiza plików konfiguracyjnych (package.json, angular.json, vue.config.js, itp.)
+- Wykrywanie zależności i mapowanie ich na frameworki
+- System wag dla różnych wskaźników frameworków
+- Inteligentne określanie typu projektu na podstawie analizy
+
+**Obsługiwane typy projektów:**
+- React (w tym Create React App, Next.js)
+- Vue.js (w tym Vue CLI, Nuxt.js)
+- Angular
+- Svelte (w tym SvelteKit)
+- Gatsby
+- Astro
+- Remix
+- Node.js (Express, Koa, Fastify, NestJS)
+- PHP
+- Python (Django, Flask)
+- Ruby (Rails)
+- Java (Spring)
+- Go
+- Rust
+- Statyczne strony HTML
+
+**Przykład użycia:**
+```javascript
+const projectTypeDetector = require('./projectTypeDetector');
+
+async function analyzeProject(projectDir) {
+  const projectType = await projectTypeDetector.detectProjectType(projectDir);
+  console.log(`Wykryty typ projektu: ${projectType}`);
+}
+```
+
+### 2. Inteligentny proces budowania
+
+Moduł `projectBuilder.js` implementuje dynamiczne komendy budowania i inteligentne zarządzanie zależnościami.
+
+**Główne funkcje:**
+- Automatyczne wykrywanie menedżera pakietów (npm, yarn, pnpm)
+- Określanie wersji Node.js na podstawie analizy projektu
+- Przygotowanie zmiennych środowiskowych dla procesu budowania
+- Wybór strategii budowania na podstawie typu projektu
+- Specjalizowane strategie budowania dla różnych frameworków
+- Weryfikacja katalogu deploymentu
+
+**Strategie budowania dla różnych typów projektów:**
+- React: wykrywanie wariantu (Create React App, Vite), budowanie z odpowiednimi komendami
+- Next.js: budowanie z obsługą SSR
+- Vue.js: wykrywanie wariantu (Vue CLI, Vite), budowanie z odpowiednimi komendami
+- Angular: budowanie z optymalizacją produkcyjną
+- Svelte/SvelteKit: budowanie z odpowiednimi komendami
+- Gatsby: budowanie statycznej strony
+- Astro: budowanie z odpowiednimi komendami
+- Remix: budowanie z obsługą SSR
+- Node.js: kopiowanie plików i instalacja zależności produkcyjnych
+- PHP: kopiowanie plików i instalacja zależności Composer
+- Python: kopiowanie plików, tworzenie wirtualnego środowiska i instalacja zależności
+- Statyczne strony HTML: inteligentna obsługa plików HTML, generowanie index.html, kompilacja SASS
+
+**Przykład użycia:**
+```javascript
+const projectBuilder = require('./projectBuilder');
+
+async function buildProject(projectInfo, deployDir) {
+  await projectBuilder.buildProject(projectInfo, deployDir);
+  console.log(`Projekt ${projectInfo.name} został zbudowany pomyślnie`);
+}
+```
+
+### 3. Zaawansowana konfiguracja serwera
+
+Moduł `serverConfigurator.js` implementuje dostosowane konfiguracje NGINX, obsługę routingu SPA i rozszerzoną obsługę API.
+
+**Główne funkcje:**
+- Generowanie optymalnej konfiguracji serwera dla różnych typów projektów
+- Obsługa routingu dla aplikacji SPA (Single Page Applications)
+- Optymalizacja wydajności (gzip, cache, nagłówki)
+- Konfiguracja bezpieczeństwa (nagłówki bezpieczeństwa)
+- Generowanie skryptów pomocniczych dla aplikacji serwerowych
+
+**Specjalizowane konfiguracje dla różnych typów projektów:**
+- React: konfiguracja NGINX z obsługą routingu SPA, optymalizacją plików statycznych i nagłówkami bezpieczeństwa
+- Next.js: skrypt serwerowy do obsługi SSR
+- Vue.js: konfiguracja NGINX z obsługą routingu SPA
+- Angular: konfiguracja NGINX z obsługą routingu SPA
+- Svelte/SvelteKit: konfiguracja NGINX lub skrypt serwerowy (w zależności od wariantu)
+- Gatsby: konfiguracja NGINX dla statycznej strony
+- Astro: konfiguracja NGINX dla statycznej strony lub SSR
+- Remix: skrypt serwerowy do obsługi SSR
+- Node.js: konfiguracja Docker Compose dla aplikacji Node.js
+- PHP: konfiguracja dla serwera Apache
+- Python: konfiguracja dla aplikacji WSGI/ASGI
+
+**Przykład użycia:**
+```javascript
+const serverConfigurator = require('./serverConfigurator');
+
+async function configureServer(projectInfo, deployDir, port) {
+  const serverConfig = await serverConfigurator.generateServerConfig(projectInfo, deployDir, port);
+  console.log(`Konfiguracja serwera dla projektu ${projectInfo.name} została wygenerowana pomyślnie`);
+}
+```
+
+### Integracja z systemem DeployMaster
+
+Wszystkie trzy komponenty zostały zintegrowane z głównym modułem `deploy.js`, tworząc kompletne rozwiązanie do automatycznego deploymentu różnych typów projektów.
+
+**Przepływ procesu deploymentu:**
+1. Użytkownik przesyła projekt (ZIP, TAR.GZ) przez interfejs Orkiestratora
+2. Orkiestrator rozpakowuje projekt i przekazuje go do modułu `projectTypeDetector.js`
+3. Moduł `projectTypeDetector.js` analizuje projekt i określa jego typ
+4. Orkiestrator przekazuje informacje o projekcie do modułu `projectBuilder.js`
+5. Moduł `projectBuilder.js` buduje projekt z odpowiednimi komendami
+6. Orkiestrator przekazuje informacje o projekcie do modułu `serverConfigurator.js`
+7. Moduł `serverConfigurator.js` generuje optymalną konfigurację serwera
+8. Orkiestrator uruchamia kontener z aplikacją
+9. Użytkownik otrzymuje URL do swojej wdrożonej aplikacji
+
+**Korzyści z uniwersalnego rozwiązania:**
+- Automatyczne wykrywanie typu projektu eliminuje potrzebę ręcznej konfiguracji
+- Inteligentny proces budowania dostosowuje się do specyfiki projektu
+- Zaawansowana konfiguracja serwera zapewnia optymalną wydajność i bezpieczeństwo
+- Obsługa routingu SPA umożliwia wdrażanie nowoczesnych aplikacji frontendowych
+- Wsparcie dla wielu frameworków i języków programowania zwiększa uniwersalność systemu
+
 ## Rozwiązywanie problemów
 
 ### Typowe problemy i rozwiązania
@@ -315,6 +450,26 @@ W sekcji "Monitoring" możesz:
 
 7. Sprawdź logi, aby upewnić się, że dane usług są poprawnie przetwarzane: `docker logs deploy-orchestrator`
 
+#### Problem: Niepoprawne wykrycie typu projektu
+
+**Przyczyna:** Niewystarczająca analiza struktury projektu lub brak charakterystycznych plików.
+
+**Rozwiązanie:**
+1. Sprawdź logi, aby zobaczyć wyniki analizy projektu: `docker logs deploy-orchestrator`
+2. Upewnij się, że projekt zawiera charakterystyczne pliki dla danego typu (package.json, angular.json, itp.)
+3. Jeśli automatyczne wykrywanie nie działa poprawnie, możesz ręcznie określić typ projektu w interfejsie użytkownika
+4. Sprawdź plik `project-analysis.json` w katalogu projektu, aby zobaczyć szczegółowe wyniki analizy
+
+#### Problem: Błędy podczas budowania projektu
+
+**Przyczyna:** Problemy z zależnościami, konfiguracją lub komendami budowania.
+
+**Rozwiązanie:**
+1. Sprawdź logi, aby zobaczyć błędy budowania: `docker logs deploy-orchestrator`
+2. Upewnij się, że projekt ma poprawnie skonfigurowane skrypty budowania w pliku package.json
+3. Sprawdź, czy projekt ma wszystkie wymagane zależności
+4. Jeśli używasz niestandardowej konfiguracji budowania, upewnij się, że jest ona kompatybilna z systemem DeployMaster
+
 ### Logi systemowe
 
 Logi poszczególnych komponentów można przeglądać za pomocą:
@@ -361,7 +516,7 @@ O: Tak, DeployMaster może automatycznie tworzyć i konfigurować bazy danych dl
 
 **P: Jak działa automatyczne wykrywanie typu projektu?**
 
-O: DeployMaster analizuje strukturę plików projektu, szukając charakterystycznych plików konfiguracyjnych (package.json, angular.json, vue.config.js, itp.) oraz wzorców katalogów.
+O: DeployMaster analizuje strukturę plików projektu, szukając charakterystycznych plików konfiguracyjnych (package.json, angular.json, vue.config.js, itp.) oraz wzorców katalogów. System używa zaawansowanego algorytmu z wagami dla różnych wskaźników, aby określić najbardziej prawdopodobny typ projektu.
 
 **P: Czy DeployMaster obsługuje mikrousługi?**
 
@@ -374,6 +529,14 @@ O: Tak, możesz określić liczbę replik dla każdej aplikacji, a Ruchownik (Tr
 **P: Czy DeployMaster obsługuje CI/CD?**
 
 O: Tak, DeployMaster udostępnia API, które można integrować z narzędziami CI/CD, takimi jak Jenkins, GitHub Actions czy GitLab CI.
+
+**P: Czy DeployMaster obsługuje routing dla aplikacji SPA?**
+
+O: Tak, DeployMaster automatycznie konfiguruje serwer NGINX z obsługą routingu dla aplikacji SPA, co umożliwia prawidłowe działanie aplikacji wykorzystujących routing po stronie klienta (React Router, Vue Router, Angular Router).
+
+**P: Czy mogę dostosować proces budowania dla mojego projektu?**
+
+O: Tak, DeployMaster analizuje skrypty w pliku package.json i używa ich do budowania projektu. Możesz dostosować proces budowania, definiując własne skrypty w pliku package.json.
 
 ## Historia rozwoju i wyzwania
 
@@ -410,7 +573,15 @@ Zaimplementowaliśmy kompletne API i interfejs użytkownika dla Orkiestratora, u
 3. Monitoring i logi
 4. Konfigurację systemu
 
-### Etap 5: Testowanie i dokumentacja
+### Etap 5: Implementacja uniwersalnego rozwiązania do deploymentu
+
+Zaimplementowaliśmy uniwersalne rozwiązanie do deploymentu, które umożliwia automatyczne wykrywanie, budowanie i wdrażanie różnych typów projektów:
+1. Stworzenie modułu `projectTypeDetector.js` do zaawansowanego wykrywania typów projektów
+2. Stworzenie modułu `projectBuilder.js` do inteligentnego procesu budowania
+3. Stworzenie modułu `serverConfigurator.js` do zaawansowanej konfiguracji serwera
+4. Integracja wszystkich komponentów z głównym modułem `deploy.js`
+
+### Etap 6: Testowanie i dokumentacja
 
 Ostatnim etapem było kompleksowe testowanie systemu i stworzenie dokumentacji, w tym:
 1. Automatyczne testy
@@ -418,4 +589,4 @@ Ostatnim etapem było kompleksowe testowanie systemu i stworzenie dokumentacji, 
 3. Dokumentacja dla użytkowników
 4. Baza wiedzy (ten dokument)
 
-Dzięki metodycznemu podejściu do rozwiązywania problemów, udało nam się stworzyć niezawodny i elastyczny system do automatycznego deploymentu aplikacji.
+Dzięki metodycznemu podejściu do rozwiązywania problemów, udało nam się stworzyć niezawodny i elastyczny system do automatycznego deploymentu aplikacji, który obsługuje szeroką gamę technologii i frameworków.
