@@ -16,7 +16,7 @@ const PORT = process.env.ORCHESTRATOR_PORT || 4000;
 
 // Middleware
 app.use(cors());
-app.use(bodyParser.json());
+app.use(bodyParser.json({ strict: false })); // Dodane strict: false dla lepszej obsługi JSON
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(fileUpload({
   createParentPath: true,
@@ -41,6 +41,23 @@ app.use(helmet({
     }
   }
 }));
+
+// Funkcja pomocnicza do bezpiecznego parsowania JSON
+function safeJsonParse(data, defaultValue = {}) {
+  if (!data) return defaultValue;
+  
+  if (typeof data === 'object') {
+    return data;
+  }
+  
+  try {
+    return JSON.parse(data);
+  } catch (error) {
+    console.error(`Błąd parsowania JSON: ${error.message}`);
+    console.error(`Dane wejściowe: ${typeof data === 'string' ? data.substring(0, 100) : typeof data}`);
+    return defaultValue;
+  }
+}
 
 // Statyczne pliki dla UI
 app.use(express.static(path.join(__dirname, 'public')));
@@ -180,16 +197,8 @@ app.post('/api/projects', async (req, res) => {
     const projectType = req.body.type || 'static';
     const environment = req.body.environment || 'dev';
     
-    // Bezpieczne parsowanie JSON dla services
-    let services = {};
-    if (req.body.services) {
-      try {
-        services = JSON.parse(req.body.services);
-      } catch (jsonError) {
-        console.error(`Błąd parsowania JSON dla services: ${jsonError.message}`);
-        // Kontynuuj z pustym obiektem services zamiast zwracać błąd
-      }
-    }
+    // Bezpieczne parsowanie JSON dla services z użyciem nowej funkcji pomocniczej
+    const servicesObj = safeJsonParse(req.body.services, {});
     
     // Zapisanie pliku projektu
     const uploadPath = path.join(__dirname, '..', 'projects', projectFile.name);
@@ -197,10 +206,11 @@ app.post('/api/projects', async (req, res) => {
     await projectFile.mv(uploadPath);
     
     console.log(`Plik projektu ${projectFile.name} został przesłany`);
+    console.log(`Dane usług: ${JSON.stringify(servicesObj)}`);
     
     // Deployment projektu
     const deploy = require('./deploy');
-    const projectData = await deploy.deployProject(uploadPath, services);
+    const projectData = await deploy.deployProject(uploadPath, servicesObj);
     
     return res.status(200).json({
       status: true,
@@ -209,6 +219,7 @@ app.post('/api/projects', async (req, res) => {
     });
   } catch (err) {
     console.error(`Błąd podczas deploymentu: ${err.message}`);
+    console.error(`Stack: ${err.stack}`);
     return res.status(500).json({
       status: false,
       message: `Błąd podczas deploymentu: ${err.message}`
@@ -219,6 +230,10 @@ app.post('/api/projects', async (req, res) => {
 // API do deploymentu projektu
 app.post('/api/deploy', async (req, res) => {
   try {
+    console.log('Otrzymano żądanie deploymentu');
+    console.log(`Typ body: ${typeof req.body}`);
+    console.log(`Zawartość body: ${JSON.stringify(req.body, null, 2)}`);
+    
     const { fileName, services } = req.body;
     
     if (!fileName) {
@@ -240,20 +255,13 @@ app.post('/api/deploy', async (req, res) => {
     }
     
     console.log(`Rozpoczęcie deploymentu projektu ${fileName}`);
-    console.log(`Dane usług: ${JSON.stringify(services)}`);
+    console.log(`Typ danych usług: ${typeof services}`);
+    console.log(`Dane usług przed przetworzeniem: ${JSON.stringify(services)}`);
     
-    // Upewnienie się, że services jest obiektem JavaScript, a nie stringiem JSON
-    let servicesObj = services;
-    if (typeof services === 'string') {
-      try {
-        servicesObj = JSON.parse(services);
-      } catch (jsonError) {
-        console.error(`Błąd parsowania JSON dla services: ${jsonError.message}`);
-        servicesObj = {};
-      }
-    } else if (!services || typeof services !== 'object') {
-      servicesObj = {};
-    }
+    // Bezpieczne parsowanie JSON dla services z użyciem nowej funkcji pomocniczej
+    const servicesObj = safeJsonParse(services, {});
+    
+    console.log(`Dane usług po przetworzeniu: ${JSON.stringify(servicesObj)}`);
     
     // Deployment projektu
     const deploy = require('./deploy');
@@ -266,9 +274,15 @@ app.post('/api/deploy', async (req, res) => {
     });
   } catch (err) {
     console.error(`Błąd podczas deploymentu: ${err.message}`);
+    console.error(`Stack: ${err.stack}`);
     return res.status(500).json({
       status: false,
-      message: `Błąd podczas deploymentu: ${err.message}`
+      message: `Błąd podczas deploymentu: ${err.message}`,
+      error: {
+        name: err.name,
+        message: err.message,
+        stack: err.stack
+      }
     });
   }
 });
