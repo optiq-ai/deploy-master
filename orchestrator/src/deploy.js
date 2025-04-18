@@ -101,11 +101,33 @@ async function detectProjectType(projectDir) {
 // Funkcja do deploymentu projektu
 async function deployProject(filePath, services = {}) {
   try {
+    logger.info(`Rozpoczęcie deploymentu projektu: ${filePath}`);
+    logger.debug(`Otrzymane dane usług: ${JSON.stringify(services)}`);
+    
+    // Upewnienie się, że services jest poprawnym obiektem JavaScript
+    let servicesObj = {};
+    try {
+      if (typeof services === 'string') {
+        logger.debug('Dane usług są stringiem, próba parsowania JSON');
+        servicesObj = JSON.parse(services);
+      } else if (services && typeof services === 'object') {
+        logger.debug('Dane usług są obiektem');
+        servicesObj = services;
+      } else {
+        logger.warn(`Nieoczekiwany format danych usług: ${typeof services}`);
+      }
+    } catch (jsonError) {
+      logger.error(`Błąd parsowania JSON dla services: ${jsonError.message}`);
+      servicesObj = {};
+    }
+    
     // Analiza projektu
     const projectInfo = await analyzeProject(filePath);
+    logger.info(`Projekt przeanalizowany: ${projectInfo.name}, typ: ${projectInfo.type}`);
     
     // Znalezienie wolnego portu
     const [freePort] = await findFreePort(8000);
+    logger.info(`Przydzielony port: ${freePort}`);
     
     // Przygotowanie katalogu dla zdeployowanego projektu
     const deployDir = path.join(DEPLOYED_DIR, projectInfo.id);
@@ -115,7 +137,7 @@ async function deployProject(filePath, services = {}) {
     await buildProject(projectInfo, deployDir);
     
     // Generowanie docker-compose.override.yml
-    await generateDockerComposeOverride(projectInfo, freePort, services);
+    await generateDockerComposeOverride(projectInfo, freePort, servicesObj);
     
     // Uruchomienie projektu
     await startProject(projectInfo.id);
@@ -127,11 +149,12 @@ async function deployProject(filePath, services = {}) {
       type: projectInfo.type,
       port: freePort,
       url: `http://localhost:${freePort}`,
-      services: services,
+      services: servicesObj,
       deployedAt: new Date().toISOString()
     };
     
     await fs.writeJson(path.join(deployDir, 'project.json'), projectData);
+    logger.info(`Deployment projektu zakończony pomyślnie: ${projectInfo.id}`);
     
     return projectData;
   } catch (err) {
@@ -183,7 +206,16 @@ async function buildProject(projectInfo, deployDir) {
 // Funkcja do generowania docker-compose.override.yml
 async function generateDockerComposeOverride(projectInfo, port, services) {
   try {
+    logger.info(`Generowanie docker-compose.override.yml dla projektu ${projectInfo.name}`);
+    logger.debug(`Dane usług przekazane do generateDockerComposeOverride: ${JSON.stringify(services)}`);
+    
     const deployDir = path.join(DEPLOYED_DIR, projectInfo.id);
+    
+    // Upewnienie się, że services jest poprawnym obiektem
+    if (!services || typeof services !== 'object') {
+      logger.warn(`Nieprawidłowy format services, używanie pustego obiektu`);
+      services = {};
+    }
     
     // Podstawowa konfiguracja dla projektu
     let composeConfig = {
@@ -207,6 +239,7 @@ async function generateDockerComposeOverride(projectInfo, port, services) {
     
     // Dodanie usług w zależności od wybranych opcji
     if (services.db && services.db.enabled) {
+      logger.debug(`Konfigurowanie bazy danych typu: ${services.db.type || 'postgres'}`);
       const dbPort = await findFreePort(5432);
       
       composeConfig.services[`db_${projectInfo.id}`] = {
@@ -235,6 +268,7 @@ async function generateDockerComposeOverride(projectInfo, port, services) {
     }
     
     if (services.redis && services.redis.enabled) {
+      logger.debug(`Konfigurowanie Redis`);
       const redisPort = await findFreePort(6379);
       
       composeConfig.services[`redis_${projectInfo.id}`] = {
@@ -248,6 +282,7 @@ async function generateDockerComposeOverride(projectInfo, port, services) {
     }
     
     // Zapisanie pliku docker-compose.override.yml
+    logger.debug(`Zapisywanie konfiguracji docker-compose: ${JSON.stringify(composeConfig, null, 2)}`);
     await fs.writeJson(
       path.join(deployDir, 'docker-compose.override.yml'),
       composeConfig,

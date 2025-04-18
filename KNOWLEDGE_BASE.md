@@ -252,7 +252,7 @@ W sekcji "Monitoring" możesz:
 
 #### Problem: Błąd JSON.parse podczas deploymentu projektu
 
-**Przyczyna:** Niezgodność między sposobem wysyłania danych przez frontend a ich przetwarzaniem przez backend. Frontend wysyła obiekt `services` jako część obiektu JSON, a backend próbuje ponownie parsować te dane jako JSON.
+**Przyczyna:** Niezgodność między sposobem wysyłania danych przez frontend a ich przetwarzaniem przez backend. Frontend wysyła obiekt `services` jako część obiektu JSON, a backend próbuje ponownie parsować te dane jako JSON. Problem występuje zarówno w endpoincie `/api/deploy` jak i w module `deploy.js`.
 
 **Rozwiązanie:**
 1. Zmodyfikuj endpoint `/api/deploy` w pliku `index.js`, aby poprawnie obsługiwał dane usług:
@@ -273,10 +273,47 @@ W sekcji "Monitoring" możesz:
    // Deployment projektu z poprawnym obiektem services
    const projectData = await deploy.deployProject(filePath, servicesObj);
    ```
-2. Dodaj logowanie danych usług, aby ułatwić debugowanie: `console.log(`Dane usług: ${JSON.stringify(services)}`);`
-3. Upewnij się, że frontend wysyła dane w poprawnym formacie JSON z odpowiednim nagłówkiem Content-Type
-4. Zrestartuj kontener Orkiestratora: `docker restart deploy-orchestrator`
-5. Sprawdź logi, aby upewnić się, że dane usług są poprawnie przetwarzane
+
+2. Zmodyfikuj funkcję `deployProject` w pliku `deploy.js`, aby również obsługiwała różne formaty danych:
+   ```javascript
+   // Upewnienie się, że services jest poprawnym obiektem JavaScript
+   let servicesObj = {};
+   try {
+     if (typeof services === 'string') {
+       logger.debug('Dane usług są stringiem, próba parsowania JSON');
+       servicesObj = JSON.parse(services);
+     } else if (services && typeof services === 'object') {
+       logger.debug('Dane usług są obiektem');
+       servicesObj = services;
+     } else {
+       logger.warn(`Nieoczekiwany format danych usług: ${typeof services}`);
+     }
+   } catch (jsonError) {
+     logger.error(`Błąd parsowania JSON dla services: ${jsonError.message}`);
+     servicesObj = {};
+   }
+   ```
+
+3. Zmodyfikuj funkcję `generateDockerComposeOverride` w pliku `deploy.js`, aby dodać dodatkową walidację:
+   ```javascript
+   // Upewnienie się, że services jest poprawnym obiektem
+   if (!services || typeof services !== 'object') {
+     logger.warn(`Nieprawidłowy format services, używanie pustego obiektu`);
+     services = {};
+   }
+   ```
+
+4. Dodaj szczegółowe logowanie w całym przepływie deploymentu, aby ułatwić diagnostykę:
+   ```javascript
+   logger.debug(`Otrzymane dane usług: ${JSON.stringify(services)}`);
+   logger.debug(`Dane usług przekazane do generateDockerComposeOverride: ${JSON.stringify(services)}`);
+   ```
+
+5. Upewnij się, że frontend wysyła dane w poprawnym formacie JSON z odpowiednim nagłówkiem Content-Type
+
+6. Zrestartuj kontener Orkiestratora: `docker restart deploy-orchestrator`
+
+7. Sprawdź logi, aby upewnić się, że dane usług są poprawnie przetwarzane: `docker logs deploy-orchestrator`
 
 ### Logi systemowe
 
