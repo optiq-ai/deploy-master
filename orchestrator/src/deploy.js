@@ -179,11 +179,21 @@ async function buildProject(projectInfo, deployDir) {
         buildCommand = `cd ${projectInfo.path} && npm install && npm run build && cp -r dist/* ${deployDir}`;
         break;
       case 'static':
-        buildCommand = `cp -r ${projectInfo.path}/* ${deployDir}`;
+        buildCommand = `
+          cp -r ${projectInfo.path}/* ${deployDir} && 
+          cd ${deployDir} && 
+          if [ ! -f index.html ] && [ $(find . -maxdepth 1 -name "*.html" | wc -l) -eq 1 ]; then 
+            HTML_FILE=$(find . -maxdepth 1 -name "*.html" | head -1) && 
+            cp "$HTML_FILE" index.html && 
+            echo "Skopiowano $HTML_FILE jako index.html"; 
+          fi
+        `;
         break;
       default:
         return reject(new Error(`Nieobsługiwany typ projektu: ${projectInfo.type}`));
     }
+    
+    logger.debug(`Wykonywanie polecenia budowania: ${buildCommand}`);
     
     exec(buildCommand, (error, stdout, stderr) => {
       if (error) {
@@ -196,6 +206,14 @@ async function buildProject(projectInfo, deployDir) {
       
       if (stderr) {
         logger.warn(`Stderr: ${stderr}`);
+      }
+      
+      // Sprawdź zawartość katalogu deploymentu
+      try {
+        const deployedFiles = fs.readdirSync(deployDir);
+        logger.debug(`Zawartość katalogu deploymentu: ${deployedFiles.join(', ')}`);
+      } catch (err) {
+        logger.warn(`Nie można odczytać zawartości katalogu deploymentu: ${err.message}`);
       }
       
       resolve();
