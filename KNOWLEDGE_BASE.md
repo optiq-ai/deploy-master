@@ -250,35 +250,33 @@ W sekcji "Monitoring" możesz:
 4. Sprawdź, czy formularz HTML ma atrybut `enctype="multipart/form-data"`
 5. Zrestartuj kontener Orkiestratora: `docker restart deploy-orchestrator`
 
-#### Problem: Błędy Content Security Policy (CSP) blokujące zasoby
+#### Problem: Błąd JSON.parse podczas deploymentu projektu
 
-**Przyczyna:** Brak lub nieprawidłowa konfiguracja nagłówków Content Security Policy w aplikacji, co powoduje blokowanie zasobów takich jak favicon.ico, skrypty czy style.
+**Przyczyna:** Niezgodność między sposobem wysyłania danych przez frontend a ich przetwarzaniem przez backend. Frontend wysyła obiekt `services` jako część obiektu JSON, a backend próbuje ponownie parsować te dane jako JSON.
 
 **Rozwiązanie:**
-1. Zainstaluj pakiet `helmet` do obsługi nagłówków bezpieczeństwa: `npm install helmet --save`
-2. Dodaj konfigurację helmet w pliku `index.js`:
+1. Zmodyfikuj endpoint `/api/deploy` w pliku `index.js`, aby poprawnie obsługiwał dane usług:
    ```javascript
-   const helmet = require('helmet');
-   
-   app.use(helmet({
-     contentSecurityPolicy: {
-       directives: {
-         defaultSrc: ["'self'"],
-         scriptSrc: ["'self'", "'unsafe-inline'"],
-         styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
-         imgSrc: ["'self'", "data:", "http://localhost:4000"],
-         connectSrc: ["'self'"],
-         fontSrc: ["'self'", "https://cdn.jsdelivr.net"],
-         objectSrc: ["'none'"],
-         mediaSrc: ["'self'"],
-         frameSrc: ["'none'"],
-       }
+   // Upewnienie się, że services jest obiektem JavaScript, a nie stringiem JSON
+   let servicesObj = services;
+   if (typeof services === 'string') {
+     try {
+       servicesObj = JSON.parse(services);
+     } catch (jsonError) {
+       console.error(`Błąd parsowania JSON dla services: ${jsonError.message}`);
+       servicesObj = {};
      }
-   }));
+   } else if (!services || typeof services !== 'object') {
+     servicesObj = {};
+   }
+   
+   // Deployment projektu z poprawnym obiektem services
+   const projectData = await deploy.deployProject(filePath, servicesObj);
    ```
-3. Dostosuj dyrektywy CSP do potrzeb aplikacji, upewniając się, że wszystkie używane zasoby są dozwolone
+2. Dodaj logowanie danych usług, aby ułatwić debugowanie: `console.log(`Dane usług: ${JSON.stringify(services)}`);`
+3. Upewnij się, że frontend wysyła dane w poprawnym formacie JSON z odpowiednim nagłówkiem Content-Type
 4. Zrestartuj kontener Orkiestratora: `docker restart deploy-orchestrator`
-5. Sprawdź w konsoli przeglądarki, czy nadal występują błędy CSP
+5. Sprawdź logi, aby upewnić się, że dane usług są poprawnie przetwarzane
 
 ### Logi systemowe
 

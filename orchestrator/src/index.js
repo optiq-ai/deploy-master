@@ -240,10 +240,24 @@ app.post('/api/deploy', async (req, res) => {
     }
     
     console.log(`Rozpoczęcie deploymentu projektu ${fileName}`);
+    console.log(`Dane usług: ${JSON.stringify(services)}`);
+    
+    // Upewnienie się, że services jest obiektem JavaScript, a nie stringiem JSON
+    let servicesObj = services;
+    if (typeof services === 'string') {
+      try {
+        servicesObj = JSON.parse(services);
+      } catch (jsonError) {
+        console.error(`Błąd parsowania JSON dla services: ${jsonError.message}`);
+        servicesObj = {};
+      }
+    } else if (!services || typeof services !== 'object') {
+      servicesObj = {};
+    }
     
     // Deployment projektu
     const deploy = require('./deploy');
-    const projectData = await deploy.deployProject(filePath, services || {});
+    const projectData = await deploy.deployProject(filePath, servicesObj);
     
     return res.status(200).json({
       status: true,
