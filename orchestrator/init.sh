@@ -37,7 +37,17 @@ cat > package.json << EOF
     "find-free-port": "^2.0.0",
     "debug": "^4.3.1",
     "extract-zip": "^2.0.1",
-    "glob": "^7.1.7"
+    "glob": "^7.1.7",
+    "winston": "^3.3.3",
+    "dockerode": "^3.3.1",
+    "handlebars": "^4.7.7",
+    "archiver": "^5.3.0",
+    "uuid": "^8.3.2",
+    "axios": "^0.21.1",
+    "multer": "^1.4.3",
+    "morgan": "^1.10.0",
+    "compression": "^1.7.4",
+    "cookie-parser": "^1.4.5"
   }
 }
 EOF
@@ -77,6 +87,16 @@ node -e "try { require('helmet'); console.log('Helmet: OK'); } catch(e) { consol
 node -e "try { require('find-free-port'); console.log('Find-free-port: OK'); } catch(e) { console.error('Find-free-port: BRAK'); }"
 node -e "try { require('extract-zip'); console.log('Extract-zip: OK'); } catch(e) { console.error('Extract-zip: BRAK'); }"
 node -e "try { require('glob'); console.log('Glob: OK'); } catch(e) { console.error('Glob: BRAK'); }"
+node -e "try { require('winston'); console.log('Winston: OK'); } catch(e) { console.error('Winston: BRAK'); }"
+node -e "try { require('dockerode'); console.log('Dockerode: OK'); } catch(e) { console.error('Dockerode: BRAK'); }"
+node -e "try { require('handlebars'); console.log('Handlebars: OK'); } catch(e) { console.error('Handlebars: BRAK'); }"
+node -e "try { require('archiver'); console.log('Archiver: OK'); } catch(e) { console.error('Archiver: BRAK'); }"
+node -e "try { require('uuid'); console.log('UUID: OK'); } catch(e) { console.error('UUID: BRAK'); }"
+node -e "try { require('axios'); console.log('Axios: OK'); } catch(e) { console.error('Axios: BRAK'); }"
+node -e "try { require('multer'); console.log('Multer: OK'); } catch(e) { console.error('Multer: BRAK'); }"
+node -e "try { require('morgan'); console.log('Morgan: OK'); } catch(e) { console.error('Morgan: BRAK'); }"
+node -e "try { require('compression'); console.log('Compression: OK'); } catch(e) { console.error('Compression: BRAK'); }"
+node -e "try { require('cookie-parser'); console.log('Cookie-parser: OK'); } catch(e) { console.error('Cookie-parser: BRAK'); }"
 
 # Sprawdzenie, czy plik index.js istnieje
 echo "Sprawdzanie pliku index.js..."
