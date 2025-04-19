@@ -7,6 +7,10 @@
 echo "=== DeployMaster - Inicjalizacja z gwarancją działania ==="
 echo "Przygotowanie środowiska..."
 
+# Ustawienie zmiennych środowiskowych
+export NODE_ENV=production
+export DEBUG=express:*,app:*
+
 # Upewnij się, że katalog node_modules jest czysty
 echo "Usuwanie istniejącego katalogu node_modules dla czystej instalacji..."
 rm -rf node_modules
@@ -30,7 +34,8 @@ cat > package.json << EOF
     "dotenv": "^10.0.0",
     "express-fileupload": "^1.2.1",
     "helmet": "^4.6.0",
-    "find-free-port": "^2.0.0"
+    "find-free-port": "^2.0.0",
+    "debug": "^4.3.1"
   }
 }
 EOF
@@ -69,4 +74,54 @@ node -e "try { require('express-fileupload'); console.log('Express-fileupload: O
 node -e "try { require('helmet'); console.log('Helmet: OK'); } catch(e) { console.error('Helmet: BRAK'); }"
 node -e "try { require('find-free-port'); console.log('Find-free-port: OK'); } catch(e) { console.error('Find-free-port: BRAK'); }"
 
+# Sprawdzenie, czy plik index.js istnieje
+echo "Sprawdzanie pliku index.js..."
+if [ -f "src/index.js" ]; then
+  echo "Plik index.js istnieje."
+else
+  echo "BŁĄD: Plik index.js nie istnieje!"
+  exit 1
+fi
+
+# Dodanie obsługi wyjątków do pliku index.js
+echo "Dodawanie obsługi wyjątków do pliku index.js..."
+cat > src/index.js.new << EOF
+// Dodanie obsługi wyjątków globalnych
+process.on('uncaughtException', (err) => {
+  console.error('Nieobsłużony wyjątek:', err);
+  console.error(err.stack);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Nieobsłużona obietnica:', reason);
+});
+
+$(cat src/index.js)
+
+// Upewnienie się, że serwer nasłuchuje
+if (!module.parent) {
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(\`Serwer uruchomiony na http://0.0.0.0:\${PORT}\`);
+  });
+  
+  server.on('error', (err) => {
+    console.error('Błąd serwera:', err);
+    if (err.code === 'EADDRINUSE') {
+      console.error(\`Port \${PORT} jest już używany. Spróbuj innego portu.\`);
+    }
+  });
+}
+EOF
+
+# Sprawdzenie, czy plik został utworzony
+if [ -f "src/index.js.new" ]; then
+  mv src/index.js.new src/index.js
+  echo "Plik index.js został zaktualizowany."
+else
+  echo "BŁĄD: Nie udało się zaktualizować pliku index.js!"
+  exit 1
+fi
+
 echo "=== Inicjalizacja zakończona. Uruchamianie aplikacji... ==="
+echo "Uruchamianie aplikacji z pełnym logowaniem błędów..."
+node src/index.js
