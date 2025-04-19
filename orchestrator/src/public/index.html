@@ -32,6 +32,17 @@
         .service-toggle {
             margin-bottom: 0.5rem;
         }
+        .nav-tabs {
+            margin-bottom: 1rem;
+        }
+        .html-content {
+            width: 100%;
+            min-height: 300px;
+            font-family: monospace;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 0.25rem;
+        }
     </style>
 </head>
 <body>
@@ -44,91 +55,161 @@
 
         <div class="row">
             <div class="col-md-8">
-                <div class="card">
-                    <div class="card-header">
-                        <h5>Upload projektu</h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="upload-area" class="upload-area">
-                            <h5>Przeciągnij i upuść plik ZIP z projektem</h5>
-                            <p>lub</p>
-                            <button id="select-file-btn" class="btn btn-primary">Wybierz plik</button>
-                            <input type="file" id="file-input" style="display: none;" accept=".zip">
+                <!-- Zakładki dla różnych typów deploymentu -->
+                <ul class="nav nav-tabs" id="deploymentTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="zip-tab" data-bs-toggle="tab" data-bs-target="#zip-content" type="button" role="tab" aria-controls="zip-content" aria-selected="true">Projekt ZIP</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="html-tab" data-bs-toggle="tab" data-bs-target="#html-content" type="button" role="tab" aria-controls="html-content" aria-selected="false">Pojedynczy HTML</button>
+                    </li>
+                </ul>
+                
+                <div class="tab-content" id="deploymentTabsContent">
+                    <!-- Zawartość zakładki ZIP -->
+                    <div class="tab-pane fade show active" id="zip-content" role="tabpanel" aria-labelledby="zip-tab">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Upload projektu</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="upload-area" class="upload-area">
+                                    <h5>Przeciągnij i upuść plik ZIP z projektem</h5>
+                                    <p>lub</p>
+                                    <button id="select-file-btn" class="btn btn-primary">Wybierz plik</button>
+                                    <input type="file" id="file-input" style="display: none;" accept=".zip">
+                                </div>
+                                <div id="upload-progress" class="progress mt-3" style="display: none;">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                                </div>
+                            </div>
                         </div>
-                        <div id="upload-progress" class="progress mt-3" style="display: none;">
-                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
-                        </div>
-                    </div>
-                </div>
 
-                <div id="project-info-card" class="card" style="display: none;">
-                    <div class="card-header">
-                        <h5>Informacje o projekcie</h5>
+                        <div id="project-info-card" class="card" style="display: none;">
+                            <div class="card-header">
+                                <h5>Informacje o projekcie</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <strong>Nazwa pliku:</strong> <span id="file-name"></span>
+                                </div>
+                                <div class="mb-3">
+                                    <strong>Typ projektu:</strong> <span id="project-type"></span>
+                                </div>
+                                <div class="mb-3">
+                                    <strong>Rozmiar:</strong> <span id="file-size"></span>
+                                </div>
+                                
+                                <h5 class="mt-4">Usługi do włączenia</h5>
+                                
+                                <div class="service-toggle form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="db-toggle">
+                                    <label class="form-check-label" for="db-toggle">Baza danych</label>
+                                    <div id="db-options" class="mt-2" style="display: none;">
+                                        <select id="db-type" class="form-select mb-2">
+                                            <option value="postgres">PostgreSQL</option>
+                                            <option value="mysql">MySQL</option>
+                                            <option value="mongodb">MongoDB</option>
+                                        </select>
+                                        <div class="row g-2">
+                                            <div class="col-md-4">
+                                                <input type="text" id="db-user" class="form-control" placeholder="Użytkownik" value="dbuser">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <input type="password" id="db-password" class="form-control" placeholder="Hasło" value="dbpassword">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <input type="text" id="db-name" class="form-control" placeholder="Nazwa bazy" value="appdb">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="service-toggle form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="redis-toggle">
+                                    <label class="form-check-label" for="redis-toggle">Redis</label>
+                                    <div id="redis-options" class="mt-2" style="display: none;">
+                                        <div class="row g-2">
+                                            <div class="col-md-6">
+                                                <input type="password" id="redis-password" class="form-control" placeholder="Hasło" value="redispassword">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="service-toggle form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="monitoring-toggle">
+                                    <label class="form-check-label" for="monitoring-toggle">Monitoring (Prometheus + Grafana)</label>
+                                </div>
+                                
+                                <div class="service-toggle form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="mailhog-toggle">
+                                    <label class="form-check-label" for="mailhog-toggle">MailHog</label>
+                                </div>
+                                
+                                <div class="service-toggle form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="minio-toggle">
+                                    <label class="form-check-label" for="minio-toggle">MinIO (S3)</label>
+                                </div>
+                                
+                                <button id="deploy-btn" class="btn btn-success mt-3">Deployuj projekt</button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <strong>Nazwa pliku:</strong> <span id="file-name"></span>
-                        </div>
-                        <div class="mb-3">
-                            <strong>Typ projektu:</strong> <span id="project-type"></span>
-                        </div>
-                        <div class="mb-3">
-                            <strong>Rozmiar:</strong> <span id="file-size"></span>
-                        </div>
-                        
-                        <h5 class="mt-4">Usługi do włączenia</h5>
-                        
-                        <div class="service-toggle form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="db-toggle">
-                            <label class="form-check-label" for="db-toggle">Baza danych</label>
-                            <div id="db-options" class="mt-2" style="display: none;">
-                                <select id="db-type" class="form-select mb-2">
-                                    <option value="postgres">PostgreSQL</option>
-                                    <option value="mysql">MySQL</option>
-                                    <option value="mongodb">MongoDB</option>
-                                </select>
-                                <div class="row g-2">
-                                    <div class="col-md-4">
-                                        <input type="text" id="db-user" class="form-control" placeholder="Użytkownik" value="dbuser">
+                    
+                    <!-- Zawartość zakładki HTML -->
+                    <div class="tab-pane fade" id="html-content" role="tabpanel" aria-labelledby="html-tab">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Deployment pojedynczego pliku HTML</h5>
+                            </div>
+                            <div class="card-body">
+                                <ul class="nav nav-tabs" id="htmlTabs" role="tablist">
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link active" id="html-file-tab" data-bs-toggle="tab" data-bs-target="#html-file-content" type="button" role="tab" aria-controls="html-file-content" aria-selected="true">Wgraj plik HTML</button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link" id="html-code-tab" data-bs-toggle="tab" data-bs-target="#html-code-content" type="button" role="tab" aria-controls="html-code-content" aria-selected="false">Wklej kod HTML</button>
+                                    </li>
+                                </ul>
+                                
+                                <div class="tab-content mt-3" id="htmlTabsContent">
+                                    <!-- Wgrywanie pliku HTML -->
+                                    <div class="tab-pane fade show active" id="html-file-content" role="tabpanel" aria-labelledby="html-file-tab">
+                                        <div id="html-upload-area" class="upload-area">
+                                            <h5>Przeciągnij i upuść plik HTML</h5>
+                                            <p>lub</p>
+                                            <button id="select-html-btn" class="btn btn-primary">Wybierz plik HTML</button>
+                                            <input type="file" id="html-file-input" style="display: none;" accept=".html,.htm">
+                                        </div>
+                                        <div id="html-upload-progress" class="progress mt-3" style="display: none;">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                                        </div>
                                     </div>
-                                    <div class="col-md-4">
-                                        <input type="password" id="db-password" class="form-control" placeholder="Hasło" value="dbpassword">
-                                    </div>
-                                    <div class="col-md-4">
-                                        <input type="text" id="db-name" class="form-control" placeholder="Nazwa bazy" value="appdb">
+                                    
+                                    <!-- Wklejanie kodu HTML -->
+                                    <div class="tab-pane fade" id="html-code-content" role="tabpanel" aria-labelledby="html-code-tab">
+                                        <div class="mb-3">
+                                            <label for="html-code-input" class="form-label">Wklej kod HTML:</label>
+                                            <textarea id="html-code-input" class="html-content" placeholder="<!DOCTYPE html>
+<html>
+<head>
+    <title>Moja strona</title>
+</head>
+<body>
+    <h1>Witaj świecie!</h1>
+</body>
+</html>"></textarea>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="html-filename-input" class="form-label">Nazwa pliku:</label>
+                                            <input type="text" id="html-filename-input" class="form-control" placeholder="moja-strona.html" value="index.html">
+                                        </div>
+                                        <button id="deploy-html-code-btn" class="btn btn-success">Deployuj kod HTML</button>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        
-                        <div class="service-toggle form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="redis-toggle">
-                            <label class="form-check-label" for="redis-toggle">Redis</label>
-                            <div id="redis-options" class="mt-2" style="display: none;">
-                                <div class="row g-2">
-                                    <div class="col-md-6">
-                                        <input type="password" id="redis-password" class="form-control" placeholder="Hasło" value="redispassword">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="service-toggle form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="monitoring-toggle">
-                            <label class="form-check-label" for="monitoring-toggle">Monitoring (Prometheus + Grafana)</label>
-                        </div>
-                        
-                        <div class="service-toggle form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="mailhog-toggle">
-                            <label class="form-check-label" for="mailhog-toggle">MailHog</label>
-                        </div>
-                        
-                        <div class="service-toggle form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="minio-toggle">
-                            <label class="form-check-label" for="minio-toggle">MinIO (S3)</label>
-                        </div>
-                        
-                        <button id="deploy-btn" class="btn btn-success mt-3">Deployuj projekt</button>
                     </div>
                 </div>
                 
@@ -174,9 +255,10 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Elementy DOM
+            // Elementy DOM dla projektu ZIP
             const uploadArea = document.getElementById('upload-area');
             const fileInput = document.getElementById('file-input');
             const selectFileBtn = document.getElementById('select-file-btn');
@@ -187,6 +269,18 @@
             const projectType = document.getElementById('project-type');
             const fileSize = document.getElementById('file-size');
             const deployBtn = document.getElementById('deploy-btn');
+            
+            // Elementy DOM dla pojedynczego HTML
+            const htmlUploadArea = document.getElementById('html-upload-area');
+            const htmlFileInput = document.getElementById('html-file-input');
+            const selectHtmlBtn = document.getElementById('select-html-btn');
+            const htmlUploadProgress = document.getElementById('html-upload-progress');
+            const htmlProgressBar = htmlUploadProgress.querySelector('.progress-bar');
+            const htmlCodeInput = document.getElementById('html-code-input');
+            const htmlFilenameInput = document.getElementById('html-filename-input');
+            const deployHtmlCodeBtn = document.getElementById('deploy-html-code-btn');
+            
+            // Elementy DOM dla wyniku deploymentu
             const deployResultCard = document.getElementById('deploy-result-card');
             const projectUrl = document.getElementById('project-url');
             const projectId = document.getElementById('project-id');
@@ -208,7 +302,7 @@
                 redisOptions.style.display = this.checked ? 'block' : 'none';
             });
             
-            // Obsługa wyboru pliku
+            // Obsługa wyboru pliku ZIP
             selectFileBtn.addEventListener('click', function() {
                 fileInput.click();
             });
@@ -219,7 +313,7 @@
                 }
             });
             
-            // Obsługa drag & drop
+            // Obsługa drag & drop dla ZIP
             uploadArea.addEventListener('dragover', function(e) {
                 e.preventDefault();
                 this.classList.add('bg-light');
@@ -238,7 +332,42 @@
                 }
             });
             
-            // Funkcja do uploadu pliku
+            // Obsługa wyboru pliku HTML
+            selectHtmlBtn.addEventListener('click', function() {
+                htmlFileInput.click();
+            });
+            
+            htmlFileInput.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    uploadHtmlFile(this.files[0]);
+                }
+            });
+            
+            // Obsługa drag & drop dla HTML
+            htmlUploadArea.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                this.classList.add('bg-light');
+            });
+            
+            htmlUploadArea.addEventListener('dragleave', function() {
+                this.classList.remove('bg-light');
+            });
+            
+            htmlUploadArea.addEventListener('drop', function(e) {
+                e.preventDefault();
+                this.classList.remove('bg-light');
+                
+                if (e.dataTransfer.files.length > 0) {
+                    uploadHtmlFile(e.dataTransfer.files[0]);
+                }
+            });
+            
+            // Obsługa przycisku deploymentu kodu HTML
+            deployHtmlCodeBtn.addEventListener('click', function() {
+                deployHtmlContent();
+            });
+            
+            // Funkcja do uploadu pliku ZIP
             function uploadFile(file) {
                 if (!file.name.endsWith('.zip')) {
                     alert('Proszę wybrać plik ZIP');
@@ -266,8 +395,8 @@
                         if (response.status) {
                             // Wyświetlenie informacji o projekcie
                             fileName.textContent = response.data.fileName;
-                            projectType.textContent = response.data.projectType;
-                            fileSize.textContent = formatFileSize(response.data.projectSize);
+                            projectType.textContent = response.data.projectType || 'Nieznany';
+                            fileSize.textContent = formatFileSize(response.data.fileSize);
                             
                             projectInfoCard.style.display = 'block';
                             uploadProgress.style.display = 'none';
@@ -290,7 +419,96 @@
                 xhr.send(formData);
             }
             
-            // Obsługa przycisku deploymentu
+            // Funkcja do uploadu pliku HTML
+            function uploadHtmlFile(file) {
+                if (!file.name.endsWith('.html') && !file.name.endsWith('.htm')) {
+                    alert('Proszę wybrać plik HTML');
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('html', file);
+                
+                htmlUploadProgress.style.display = 'block';
+                
+                const xhr = new XMLHttpRequest();
+                
+                xhr.upload.addEventListener('progress', function(e) {
+                    if (e.lengthComputable) {
+                        const percentComplete = (e.loaded / e.total) * 100;
+                        htmlProgressBar.style.width = percentComplete + '%';
+                    }
+                });
+                
+                xhr.addEventListener('load', function() {
+                    if (xhr.status === 200) {
+                        const response = JSON.parse(xhr.responseText);
+                        
+                        if (response.status) {
+                            // Wyświetlenie wyniku deploymentu
+                            showDeploymentResult(response.data);
+                            htmlUploadProgress.style.display = 'none';
+                        } else {
+                            alert('Błąd: ' + response.message);
+                            htmlUploadProgress.style.display = 'none';
+                        }
+                    } else {
+                        alert('Wystąpił błąd podczas uploadu');
+                        htmlUploadProgress.style.display = 'none';
+                    }
+                });
+                
+                xhr.addEventListener('error', function() {
+                    alert('Wystąpił błąd podczas uploadu');
+                    htmlUploadProgress.style.display = 'none';
+                });
+                
+                xhr.open('POST', '/api/deploy-html');
+                xhr.send(formData);
+            }
+            
+            // Funkcja do deploymentu zawartości HTML
+            function deployHtmlContent() {
+                const htmlContent = htmlCodeInput.value;
+                const fileName = htmlFilenameInput.value;
+                
+                if (!htmlContent) {
+                    alert('Proszę wprowadzić kod HTML');
+                    return;
+                }
+                
+                if (!fileName) {
+                    alert('Proszę podać nazwę pliku');
+                    return;
+                }
+                
+                const data = {
+                    htmlContent: htmlContent,
+                    fileName: fileName
+                };
+                
+                fetch('/api/deploy-html-content', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status) {
+                        // Wyświetlenie wyniku deploymentu
+                        showDeploymentResult(data.data);
+                    } else {
+                        alert('Błąd: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    alert('Wystąpił błąd podczas deploymentu: ' + error);
+                });
+            }
+            
+            // Obsługa przycisku deploymentu projektu ZIP
             deployBtn.addEventListener('click', function() {
                 const services = {
                     db: {
@@ -331,52 +549,7 @@
                 .then(data => {
                     if (data.status) {
                         // Wyświetlenie wyniku deploymentu
-                        projectUrl.textContent = data.data.url;
-                        projectUrl.href = data.data.url;
-                        projectId.textContent = data.data.id;
-                        
-                        // Wyświetlenie listy usług
-                        servicesList.innerHTML = '';
-                        
-                        if (data.data.services.db && data.data.services.db.enabled) {
-                            const li = document.createElement('li');
-                            li.className = 'list-group-item';
-                            li.textContent = `Baza danych (${data.data.services.db.type})`;
-                            servicesList.appendChild(li);
-                        }
-                        
-                        if (data.data.services.redis && data.data.services.redis.enabled) {
-                            const li = document.createElement('li');
-                            li.className = 'list-group-item';
-                            li.textContent = 'Redis';
-                            servicesList.appendChild(li);
-                        }
-                        
-                        if (data.data.services.monitoring && data.data.services.monitoring.enabled) {
-                            const li = document.createElement('li');
-                            li.className = 'list-group-item';
-                            li.textContent = 'Monitoring (Prometheus + Grafana)';
-                            servicesList.appendChild(li);
-                        }
-                        
-                        if (data.data.services.mailhog && data.data.services.mailhog.enabled) {
-                            const li = document.createElement('li');
-                            li.className = 'list-group-item';
-                            li.textContent = 'MailHog';
-                            servicesList.appendChild(li);
-                        }
-                        
-                        if (data.data.services.minio && data.data.services.minio.enabled) {
-                            const li = document.createElement('li');
-                            li.className = 'list-group-item';
-                            li.textContent = 'MinIO (S3)';
-                            servicesList.appendChild(li);
-                        }
-                        
-                        deployResultCard.style.display = 'block';
-                        
-                        // Odświeżenie listy projektów
-                        loadProjects();
+                        showDeploymentResult(data.data);
                     } else {
                         alert('Błąd: ' + data.message);
                     }
@@ -385,6 +558,53 @@
                     alert('Wystąpił błąd podczas deploymentu: ' + error);
                 });
             });
+            
+            // Funkcja do wyświetlania wyniku deploymentu
+            function showDeploymentResult(data) {
+                projectUrl.textContent = data.url;
+                projectUrl.href = data.url;
+                projectId.textContent = data.id;
+                
+                // Wyświetlenie listy usług
+                servicesList.innerHTML = '';
+                
+                if (data.services) {
+                    for (const [key, service] of Object.entries(data.services)) {
+                        if (service.enabled) {
+                            const listItem = document.createElement('li');
+                            listItem.className = 'list-group-item';
+                            
+                            const serviceName = document.createElement('div');
+                            serviceName.className = 'fw-bold';
+                            serviceName.textContent = key.charAt(0).toUpperCase() + key.slice(1);
+                            
+                            const serviceUrl = document.createElement('div');
+                            if (service.url) {
+                                const link = document.createElement('a');
+                                link.href = service.url;
+                                link.textContent = service.url;
+                                link.target = '_blank';
+                                serviceUrl.appendChild(link);
+                            } else {
+                                serviceUrl.textContent = 'Brak URL';
+                            }
+                            
+                            listItem.appendChild(serviceName);
+                            listItem.appendChild(serviceUrl);
+                            
+                            servicesList.appendChild(listItem);
+                        }
+                    }
+                }
+                
+                deployResultCard.style.display = 'block';
+                
+                // Przewinięcie do wyniku
+                deployResultCard.scrollIntoView({ behavior: 'smooth' });
+                
+                // Odświeżenie listy projektów
+                loadProjects();
+            }
             
             // Funkcja do ładowania listy projektów
             function loadProjects() {
@@ -400,32 +620,28 @@
                         }
                         
                         data.data.forEach(project => {
-                            const a = document.createElement('a');
-                            a.className = 'list-group-item list-group-item-action';
-                            a.href = project.url;
-                            a.target = '_blank';
+                            const listItem = document.createElement('a');
+                            listItem.className = 'list-group-item list-group-item-action';
+                            listItem.href = project.url;
+                            listItem.target = '_blank';
                             
-                            const div = document.createElement('div');
-                            div.className = 'd-flex w-100 justify-content-between';
+                            const projectName = document.createElement('div');
+                            projectName.className = 'fw-bold';
+                            projectName.textContent = project.name;
                             
-                            const h5 = document.createElement('h5');
-                            h5.className = 'mb-1';
-                            h5.textContent = project.name;
+                            const projectType = document.createElement('div');
+                            projectType.className = 'small text-muted';
+                            projectType.textContent = `Typ: ${project.type}`;
                             
-                            const small = document.createElement('small');
-                            small.textContent = formatDate(project.deployedAt);
+                            const projectDate = document.createElement('div');
+                            projectDate.className = 'small text-muted';
+                            projectDate.textContent = `Zdeployowany: ${new Date(project.deployedAt).toLocaleString()}`;
                             
-                            div.appendChild(h5);
-                            div.appendChild(small);
+                            listItem.appendChild(projectName);
+                            listItem.appendChild(projectType);
+                            listItem.appendChild(projectDate);
                             
-                            const p = document.createElement('p');
-                            p.className = 'mb-1';
-                            p.textContent = `Typ: ${project.type}, Port: ${project.port}`;
-                            
-                            a.appendChild(div);
-                            a.appendChild(p);
-                            
-                            projectsList.appendChild(a);
+                            projectsList.appendChild(listItem);
                         });
                     } else {
                         projectsList.innerHTML = '<div class="text-center py-3">Błąd podczas ładowania projektów</div>';
@@ -436,7 +652,7 @@
                 });
             }
             
-            // Funkcje pomocnicze
+            // Funkcja do formatowania rozmiaru pliku
             function formatFileSize(bytes) {
                 if (bytes === 0) return '0 B';
                 
@@ -447,16 +663,9 @@
                 return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
             }
             
-            function formatDate(dateString) {
-                const date = new Date(dateString);
-                return date.toLocaleString();
-            }
-            
             // Ładowanie listy projektów przy starcie
             loadProjects();
         });
     </script>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
