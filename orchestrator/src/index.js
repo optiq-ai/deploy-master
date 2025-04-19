@@ -69,6 +69,55 @@ function safeJsonParse(data, defaultValue = {}) {
 const PROJECTS_DIR = path.join(__dirname, '..', 'projects');
 const DEPLOYED_DIR = path.join(__dirname, '..', 'deployed');
 
+// Funkcja do sprawdzania i pobierania obrazu Docker, jeśli nie istnieje
+async function ensureImageExists(imageName) {
+  try {
+    console.log(`Sprawdzanie, czy obraz ${imageName} istnieje...`);
+    
+    // Próba pobrania informacji o obrazie
+    try {
+      await docker.getImage(imageName).inspect();
+      console.log(`Obraz ${imageName} już istnieje lokalnie.`);
+      return true;
+    } catch (err) {
+      // Obraz nie istnieje, trzeba go pobrać
+      if (err.statusCode === 404) {
+        console.log(`Obraz ${imageName} nie istnieje lokalnie. Rozpoczęcie pobierania...`);
+        
+        // Pobieranie obrazu
+        const stream = await docker.pull(imageName);
+        
+        // Oczekiwanie na zakończenie pobierania
+        await new Promise((resolve, reject) => {
+          docker.modem.followProgress(stream, (err, output) => {
+            if (err) {
+              console.error(`Błąd podczas pobierania obrazu ${imageName}: ${err.message}`);
+              reject(err);
+            } else {
+              console.log(`Obraz ${imageName} został pomyślnie pobrany.`);
+              resolve(output);
+            }
+          }, (event) => {
+            // Opcjonalnie: logowanie postępu pobierania
+            if (event.progress) {
+              console.log(`Pobieranie ${imageName}: ${event.progress}`);
+            }
+          });
+        });
+        
+        return true;
+      } else {
+        // Inny błąd
+        console.error(`Błąd podczas sprawdzania obrazu ${imageName}: ${err.message}`);
+        throw err;
+      }
+    }
+  } catch (err) {
+    console.error(`Błąd podczas zapewniania istnienia obrazu ${imageName}: ${err.message}`);
+    throw err;
+  }
+}
+
 // Funkcja do deploymentu pojedynczego pliku HTML
 async function deploySingleHtml(htmlFile, htmlContent) {
   try {
@@ -192,6 +241,15 @@ async function startProjectWithDockerAPI(projectId, containerConfigs) {
     // Uruchomienie kontenerów
     for (const containerConfig of containerConfigs) {
       const containerName = containerConfig.name;
+      const imageName = containerConfig.Image;
+      
+      // Upewnienie się, że obraz istnieje (pobierz, jeśli nie istnieje)
+      try {
+        await ensureImageExists(imageName);
+      } catch (err) {
+        console.error(`Nie można zapewnić istnienia obrazu ${imageName}: ${err.message}`);
+        throw new Error(`Nie można zapewnić istnienia obrazu ${imageName}: ${err.message}`);
+      }
       
       // Sprawdzenie, czy kontener już istnieje
       try {
@@ -218,7 +276,7 @@ async function startProjectWithDockerAPI(projectId, containerConfigs) {
       
       // Tworzenie i uruchamianie kontenera
       try {
-        console.log(`Tworzenie kontenera ${containerName}`);
+        console.log(`Tworzenie kontenera ${containerName} z obrazu ${imageName}`);
         
         // Usunięcie pola name z konfiguracji, ponieważ jest przekazywane osobno
         const { name, ...configWithoutName } = containerConfig;
