@@ -35,7 +35,9 @@ cat > package.json << EOF
     "express-fileupload": "^1.2.1",
     "helmet": "^4.6.0",
     "find-free-port": "^2.0.0",
-    "debug": "^4.3.1"
+    "debug": "^4.3.1",
+    "extract-zip": "^2.0.1",
+    "glob": "^7.1.7"
   }
 }
 EOF
@@ -73,6 +75,8 @@ node -e "try { require('dotenv'); console.log('Dotenv: OK'); } catch(e) { consol
 node -e "try { require('express-fileupload'); console.log('Express-fileupload: OK'); } catch(e) { console.error('Express-fileupload: BRAK'); }"
 node -e "try { require('helmet'); console.log('Helmet: OK'); } catch(e) { console.error('Helmet: BRAK'); }"
 node -e "try { require('find-free-port'); console.log('Find-free-port: OK'); } catch(e) { console.error('Find-free-port: BRAK'); }"
+node -e "try { require('extract-zip'); console.log('Extract-zip: OK'); } catch(e) { console.error('Extract-zip: BRAK'); }"
+node -e "try { require('glob'); console.log('Glob: OK'); } catch(e) { console.error('Glob: BRAK'); }"
 
 # Sprawdzenie, czy plik index.js istnieje
 echo "Sprawdzanie pliku index.js..."
