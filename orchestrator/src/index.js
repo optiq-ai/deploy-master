@@ -8,6 +8,7 @@ const fileUpload = require('express-fileupload');
 const helmet = require('helmet');
 const { exec } = require('child_process');
 const findFreePort = require('find-free-port');
+const Dockerode = require('dockerode');
 
 // Konfiguracja środowiska
 dotenv.config();
@@ -15,6 +16,9 @@ dotenv.config();
 // Inicjalizacja Express
 const app = express();
 const PORT = process.env.ORCHESTRATOR_PORT || 4000;
+
+// Inicjalizacja klienta Docker
+const docker = new Dockerode();
 
 // Middleware
 app.use(cors());
@@ -114,56 +118,34 @@ server {
     
     await fs.writeFile(nginxConfPath, nginxConf);
     
-    // Generowanie docker-compose.override.yml
-    const composeConfig = {
-      version: '3.8',
-      services: {
-        [`app_${projectId}`]: {
-          image: 'nginx:alpine',
-          container_name: `app_${projectId}`,
-          restart: 'unless-stopped',
-          ports: [`${freePort}:80`],
-          volumes: [
-            `${deployDir}:/usr/share/nginx/html`,
-            `${nginxConfPath}:/etc/nginx/conf.d/default.conf`
-          ],
-          networks: ['deploy-network']
+    // Konfiguracja kontenera NGINX
+    const containerConfig = {
+      name: `app_${projectId}`,
+      Image: 'nginx:alpine',
+      HostConfig: {
+        Binds: [
+          `${deployDir}:/usr/share/nginx/html`,
+          `${nginxConfPath}:/etc/nginx/conf.d/default.conf`
+        ],
+        PortBindings: {
+          '80/tcp': [{ HostPort: `${freePort}` }]
+        },
+        RestartPolicy: {
+          Name: 'unless-stopped'
         }
       },
-      networks: {
-        'deploy-network': {
-          external: true
+      ExposedPorts: {
+        '80/tcp': {}
+      },
+      NetworkingConfig: {
+        EndpointsConfig: {
+          'deploy-network': {}
         }
       }
     };
     
-    // Zapisanie pliku docker-compose.override.yml
-    await fs.writeJson(
-      path.join(deployDir, 'docker-compose.override.yml'),
-      composeConfig,
-      { spaces: 2 }
-    );
-    
-    // Uruchomienie kontenera
-    await new Promise((resolve, reject) => {
-      const command = `cd ${deployDir} && docker-compose -f docker-compose.override.yml up -d`;
-      
-      exec(command, (error, stdout, stderr) => {
-        if (error) {
-          console.error(`Błąd podczas uruchamiania kontenera: ${error.message}`);
-          return reject(error);
-        }
-        
-        console.log(`Kontener dla projektu ${projectId} został uruchomiony pomyślnie`);
-        console.log(`Stdout: ${stdout}`);
-        
-        if (stderr) {
-          console.warn(`Stderr: ${stderr}`);
-        }
-        
-        resolve();
-      });
-    });
+    // Uruchomienie kontenera przez Docker API zamiast docker-compose
+    await startProjectWithDockerAPI(projectId, [containerConfig]);
     
     // Zapisanie informacji o projekcie
     const projectData = {
@@ -182,6 +164,83 @@ server {
     return projectData;
   } catch (err) {
     console.error(`Błąd podczas deploymentu pojedynczego pliku HTML: ${err.message}`);
+    throw err;
+  }
+}
+
+// Funkcja do uruchamiania projektu bezpośrednio przez Docker API
+async function startProjectWithDockerAPI(projectId, containerConfigs) {
+  try {
+    console.log(`Uruchamianie projektu ${projectId} przez Docker API`);
+    
+    // Sprawdzenie, czy sieć deploy-network istnieje, jeśli nie, to ją utworzyć
+    try {
+      const networks = await docker.listNetworks();
+      const networkExists = networks.some(network => network.Name === 'deploy-network');
+      
+      if (!networkExists) {
+        console.log('Tworzenie sieci deploy-network');
+        await docker.createNetwork({
+          Name: 'deploy-network',
+          Driver: 'bridge'
+        });
+      }
+    } catch (err) {
+      console.warn(`Błąd podczas sprawdzania/tworzenia sieci: ${err.message}`);
+    }
+    
+    // Uruchomienie kontenerów
+    for (const containerConfig of containerConfigs) {
+      const containerName = containerConfig.name;
+      
+      // Sprawdzenie, czy kontener już istnieje
+      try {
+        const containers = await docker.listContainers({ all: true });
+        const existingContainer = containers.find(container => 
+          container.Names.some(name => name === `/${containerName}`)
+        );
+        
+        if (existingContainer) {
+          console.log(`Kontener ${containerName} już istnieje, usuwanie...`);
+          const container = docker.getContainer(existingContainer.Id);
+          
+          if (existingContainer.State === 'running') {
+            await container.stop();
+            console.log(`Kontener ${containerName} zatrzymany`);
+          }
+          
+          await container.remove();
+          console.log(`Kontener ${containerName} usunięty`);
+        }
+      } catch (err) {
+        console.warn(`Błąd podczas sprawdzania/usuwania kontenera: ${err.message}`);
+      }
+      
+      // Tworzenie i uruchamianie kontenera
+      try {
+        console.log(`Tworzenie kontenera ${containerName}`);
+        
+        // Usunięcie pola name z konfiguracji, ponieważ jest przekazywane osobno
+        const { name, ...configWithoutName } = containerConfig;
+        
+        const container = await docker.createContainer({
+          ...configWithoutName,
+          name: containerName
+        });
+        
+        console.log(`Kontener ${containerName} utworzony`);
+        
+        await container.start();
+        console.log(`Kontener ${containerName} uruchomiony`);
+      } catch (err) {
+        console.error(`Błąd podczas tworzenia/uruchamiania kontenera ${containerName}: ${err.message}`);
+        throw err;
+      }
+    }
+    
+    console.log(`Projekt ${projectId} uruchomiony pomyślnie przez Docker API`);
+  } catch (err) {
+    console.error(`Błąd podczas uruchamiania projektu przez Docker API: ${err.message}`);
     throw err;
   }
 }
@@ -534,28 +593,23 @@ app.post('/api/deploy', async (req, res) => {
     if (!fileName) {
       return res.status(400).json({
         status: false,
-        message: 'Nie podano nazwy pliku projektu'
+        message: 'Nie podano nazwy pliku'
       });
     }
     
-    // Ścieżka do pliku projektu
     const filePath = path.join(__dirname, '..', 'projects', fileName);
     
-    // Sprawdzenie, czy plik istnieje
-    if (!await fs.pathExists(filePath)) {
+    if (!fs.existsSync(filePath)) {
       return res.status(404).json({
         status: false,
-        message: `Plik projektu ${fileName} nie istnieje`
+        message: `Plik ${fileName} nie istnieje`
       });
     }
-    
-    console.log(`Rozpoczęcie deploymentu projektu ${fileName}`);
-    console.log(`Typ danych usług: ${typeof services}`);
-    console.log(`Dane usług przed przetworzeniem: ${JSON.stringify(services)}`);
     
     // Bezpieczne parsowanie JSON dla services z użyciem nowej funkcji pomocniczej
     const servicesObj = safeJsonParse(services, {});
     
+    console.log(`Rozpoczęcie deploymentu projektu: ${fileName}`);
     console.log(`Dane usług po przetworzeniu: ${JSON.stringify(servicesObj)}`);
     
     // Deployment projektu
@@ -572,28 +626,59 @@ app.post('/api/deploy', async (req, res) => {
     console.error(`Stack: ${err.stack}`);
     return res.status(500).json({
       status: false,
-      message: `Błąd podczas deploymentu: ${err.message}`,
-      error: {
-        name: err.name,
-        message: err.message,
-        stack: err.stack
-      }
+      message: `Błąd podczas deploymentu: ${err.message}`
+    });
+  }
+});
+
+// API do pobierania statusu projektu
+app.get('/api/projects/:id', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    
+    if (!projectId) {
+      return res.status(400).json({
+        status: false,
+        message: 'Nie podano ID projektu'
+      });
+    }
+    
+    const deploy = require('./deploy');
+    const projectStatus = await deploy.getProjectStatus(projectId);
+    
+    return res.status(200).json({
+      status: true,
+      data: projectStatus
+    });
+  } catch (err) {
+    console.error(`Błąd podczas pobierania statusu projektu: ${err.message}`);
+    return res.status(500).json({
+      status: false,
+      message: `Błąd podczas pobierania statusu projektu: ${err.message}`
+    });
+  }
+});
+
+// API do pobierania listy projektów
+app.get('/api/projects', async (req, res) => {
+  try {
+    const deploy = require('./deploy');
+    const projects = await deploy.getDeployedProjects();
+    
+    return res.status(200).json({
+      status: true,
+      data: projects
+    });
+  } catch (err) {
+    console.error(`Błąd podczas pobierania listy projektów: ${err.message}`);
+    return res.status(500).json({
+      status: false,
+      message: `Błąd podczas pobierania listy projektów: ${err.message}`
     });
   }
 });
 
 // Uruchomienie serwera
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Orkiestrator uruchomiony na porcie ${PORT}`);
-});
-
-// Obsługa zamknięcia
-process.on('SIGTERM', () => {
-  console.log('Zamykanie serwera Orkiestratora...');
-  process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  console.log('Zamykanie serwera Orkiestratora...');
-  process.exit(0);
+  console.log(`Serwer uruchomiony na porcie ${PORT}`);
 });

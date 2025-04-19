@@ -104,11 +104,11 @@ async function deployProject(filePath, services = {}) {
     // Generowanie konfiguracji serwera
     const serverConfig = await serverConfigurator.generateServerConfig(projectInfo, deployDir, freePort);
     
-    // Generowanie docker-compose.override.yml
-    await generateDockerComposeOverride(projectInfo, freePort, servicesObj, serverConfig);
+    // Generowanie konfiguracji kontenera
+    const containerConfig = await generateContainerConfig(projectInfo, freePort, servicesObj, serverConfig);
     
-    // Uruchomienie projektu
-    await startProject(projectInfo.id);
+    // Uruchomienie projektu bezpośrednio przez Docker API
+    await startProjectWithDockerAPI(projectInfo.id, containerConfig);
     
     // Zapisanie informacji o projekcie
     const projectData = {
@@ -131,10 +131,10 @@ async function deployProject(filePath, services = {}) {
   }
 }
 
-// Funkcja do generowania docker-compose.override.yml
-async function generateDockerComposeOverride(projectInfo, port, services = {}, serverConfig = {}) {
+// Funkcja do generowania konfiguracji kontenera
+async function generateContainerConfig(projectInfo, port, services = {}, serverConfig = {}) {
   try {
-    logger.info(`Generowanie docker-compose.override.yml dla projektu ${projectInfo.name}`);
+    logger.info(`Generowanie konfiguracji kontenera dla projektu ${projectInfo.name}`);
     
     // Upewnienie się, że services jest obiektem
     if (!services || typeof services !== 'object') {
@@ -143,98 +143,121 @@ async function generateDockerComposeOverride(projectInfo, port, services = {}, s
     }
     
     const deployDir = path.join(DEPLOYED_DIR, projectInfo.id);
+    const containerConfigs = [];
     
-    // Użycie konfiguracji serwera, jeśli jest dostępna
-    let composeConfig = {};
-    if (serverConfig && serverConfig.dockerComposeConfig) {
-      composeConfig = {
-        version: '3.8',
-        ...serverConfig.dockerComposeConfig,
-        networks: {
-          'deploy-network': {
-            external: true
+    // Podstawowa konfiguracja dla aplikacji
+    let appContainerConfig = {};
+    
+    // Dostosowanie konfiguracji w zależności od typu projektu
+    switch (projectInfo.type) {
+      case 'nextjs':
+        appContainerConfig = {
+          name: `app_${projectInfo.id}`,
+          Image: 'node:16-alpine',
+          Cmd: ['node', 'server.js'],
+          WorkingDir: '/app',
+          HostConfig: {
+            Binds: [`${deployDir}:/app`],
+            PortBindings: {
+              '3000/tcp': [{ HostPort: `${port}` }]
+            },
+            RestartPolicy: {
+              Name: 'unless-stopped'
+            }
+          },
+          ExposedPorts: {
+            '3000/tcp': {}
+          },
+          NetworkingConfig: {
+            EndpointsConfig: {
+              'deploy-network': {}
+            }
           }
-        }
-      };
-    } else {
-      // Podstawowa konfiguracja dla aplikacji
-      composeConfig = {
-        version: '3.8',
-        services: {
-          [`app_${projectInfo.id}`]: {
-            image: getImageForProjectType(projectInfo.type),
-            container_name: `app_${projectInfo.id}`,
-            restart: 'unless-stopped',
-            ports: [`${port}:80`],
-            volumes: [`${deployDir}:/usr/share/nginx/html`],
-            networks: ['deploy-network']
+        };
+        break;
+        
+      case 'node':
+        appContainerConfig = {
+          name: `app_${projectInfo.id}`,
+          Image: 'node:16-alpine',
+          Cmd: ['node', 'index.js'],
+          WorkingDir: '/app',
+          HostConfig: {
+            Binds: [`${deployDir}:/app`],
+            PortBindings: {
+              '3000/tcp': [{ HostPort: `${port}` }]
+            },
+            RestartPolicy: {
+              Name: 'unless-stopped'
+            }
+          },
+          ExposedPorts: {
+            '3000/tcp': {}
+          },
+          NetworkingConfig: {
+            EndpointsConfig: {
+              'deploy-network': {}
+            }
           }
-        },
-        networks: {
-          'deploy-network': {
-            external: true
+        };
+        break;
+        
+      case 'php':
+        appContainerConfig = {
+          name: `app_${projectInfo.id}`,
+          Image: 'php:8.0-apache',
+          HostConfig: {
+            Binds: [`${deployDir}:/var/www/html`],
+            PortBindings: {
+              '80/tcp': [{ HostPort: `${port}` }]
+            },
+            RestartPolicy: {
+              Name: 'unless-stopped'
+            }
+          },
+          ExposedPorts: {
+            '80/tcp': {}
+          },
+          NetworkingConfig: {
+            EndpointsConfig: {
+              'deploy-network': {}
+            }
           }
-        }
-      };
-      
-      // Dostosowanie konfiguracji w zależności od typu projektu
-      switch (projectInfo.type) {
-        case 'nextjs':
-          composeConfig.services[`app_${projectInfo.id}`] = {
-            image: 'node:16-alpine',
-            container_name: `app_${projectInfo.id}`,
-            restart: 'unless-stopped',
-            ports: [`${port}:3000`],
-            volumes: [`${deployDir}:/app`],
-            working_dir: '/app',
-            command: ['node', 'server.js'],
-            networks: ['deploy-network']
-          };
-          break;
-          
-        case 'node':
-          composeConfig.services[`app_${projectInfo.id}`] = {
-            image: 'node:16-alpine',
-            container_name: `app_${projectInfo.id}`,
-            restart: 'unless-stopped',
-            ports: [`${port}:3000`],
-            volumes: [`${deployDir}:/app`],
-            working_dir: '/app',
-            command: ['node', 'index.js'],
-            networks: ['deploy-network']
-          };
-          break;
-          
-        case 'php':
-          composeConfig.services[`app_${projectInfo.id}`] = {
-            image: 'php:8.0-apache',
-            container_name: `app_${projectInfo.id}`,
-            restart: 'unless-stopped',
-            ports: [`${port}:80`],
-            volumes: [`${deployDir}:/var/www/html`],
-            networks: ['deploy-network']
-          };
-          break;
-          
-        case 'python':
-          composeConfig.services[`app_${projectInfo.id}`] = {
-            image: 'python:3.9-slim',
-            container_name: `app_${projectInfo.id}`,
-            restart: 'unless-stopped',
-            ports: [`${port}:5000`],
-            volumes: [`${deployDir}:/app`],
-            working_dir: '/app',
-            command: ['sh', '-c', 'source venv/bin/activate && python app.py'],
-            networks: ['deploy-network']
-          };
-          break;
-          
-        default:
-          // Dla projektów statycznych i innych frontendowych używamy NGINX z konfiguracją SPA
-          // Generowanie konfiguracji NGINX dla SPA
-          const nginxConfPath = path.join(deployDir, 'nginx.conf');
-          if (!fs.existsSync(nginxConfPath)) {
-            const nginxConf = `
+        };
+        break;
+        
+      case 'python':
+        appContainerConfig = {
+          name: `app_${projectInfo.id}`,
+          Image: 'python:3.9-slim',
+          Cmd: ['sh', '-c', 'source venv/bin/activate && python app.py'],
+          WorkingDir: '/app',
+          HostConfig: {
+            Binds: [`${deployDir}:/app`],
+            PortBindings: {
+              '5000/tcp': [{ HostPort: `${port}` }]
+            },
+            RestartPolicy: {
+              Name: 'unless-stopped'
+            }
+          },
+          ExposedPorts: {
+            '5000/tcp': {}
+          },
+          NetworkingConfig: {
+            EndpointsConfig: {
+              'deploy-network': {}
+            }
+          }
+        };
+        break;
+        
+      default:
+        // Dla projektów statycznych i innych frontendowych używamy NGINX z konfiguracją SPA
+        // Generowanie konfiguracji NGINX dla SPA
+        const nginxConfPath = path.join(deployDir, 'nginx.conf');
+        if (!fs.existsSync(nginxConfPath)) {
+          const nginxConf = `
 server {
     listen 80;
     server_name localhost;
@@ -256,23 +279,37 @@ server {
     add_header X-Content-Type-Options "nosniff";
 }
 `;
-            
-            await fs.writeFile(nginxConfPath, nginxConf);
-          }
           
-          composeConfig.services[`app_${projectInfo.id}`] = {
-            image: 'nginx:alpine',
-            container_name: `app_${projectInfo.id}`,
-            restart: 'unless-stopped',
-            ports: [`${port}:80`],
-            volumes: [
+          await fs.writeFile(nginxConfPath, nginxConf);
+        }
+        
+        appContainerConfig = {
+          name: `app_${projectInfo.id}`,
+          Image: 'nginx:alpine',
+          HostConfig: {
+            Binds: [
               `${deployDir}:/usr/share/nginx/html`,
               `${nginxConfPath}:/etc/nginx/conf.d/default.conf`
             ],
-            networks: ['deploy-network']
-          };
-      }
+            PortBindings: {
+              '80/tcp': [{ HostPort: `${port}` }]
+            },
+            RestartPolicy: {
+              Name: 'unless-stopped'
+            }
+          },
+          ExposedPorts: {
+            '80/tcp': {}
+          },
+          NetworkingConfig: {
+            EndpointsConfig: {
+              'deploy-network': {}
+            }
+          }
+        };
     }
+    
+    containerConfigs.push(appContainerConfig);
     
     // Dodanie bazy danych, jeśli jest włączona
     if (services.db && services.db.enabled) {
@@ -284,30 +321,50 @@ server {
       // Znalezienie wolnego portu dla bazy danych
       const [dbPort] = await findFreePort(getDbPort(dbType));
       
-      composeConfig.services[`db_${projectInfo.id}`] = {
-        image: getDbImage(dbType),
-        container_name: `db_${projectInfo.id}`,
-        restart: 'unless-stopped',
-        environment: {
-          POSTGRES_USER: dbUser,
-          POSTGRES_PASSWORD: dbPassword,
-          POSTGRES_DB: dbName,
-          MYSQL_ROOT_PASSWORD: dbPassword,
-          MYSQL_USER: dbUser,
-          MYSQL_PASSWORD: dbPassword,
-          MYSQL_DATABASE: dbName,
-          MONGO_INITDB_ROOT_USERNAME: dbUser,
-          MONGO_INITDB_ROOT_PASSWORD: dbPassword
+      const dbContainerConfig = {
+        name: `db_${projectInfo.id}`,
+        Image: getDbImage(dbType),
+        Env: [
+          `POSTGRES_USER=${dbUser}`,
+          `POSTGRES_PASSWORD=${dbPassword}`,
+          `POSTGRES_DB=${dbName}`,
+          `MYSQL_ROOT_PASSWORD=${dbPassword}`,
+          `MYSQL_USER=${dbUser}`,
+          `MYSQL_PASSWORD=${dbPassword}`,
+          `MYSQL_DATABASE=${dbName}`,
+          `MONGO_INITDB_ROOT_USERNAME=${dbUser}`,
+          `MONGO_INITDB_ROOT_PASSWORD=${dbPassword}`
+        ],
+        HostConfig: {
+          Binds: [`db_${projectInfo.id}_data:/var/lib/postgresql/data`],
+          PortBindings: {
+            [`${getDbPort(dbType)}/tcp`]: [{ HostPort: `${dbPort}` }]
+          },
+          RestartPolicy: {
+            Name: 'unless-stopped'
+          }
         },
-        volumes: [`db_${projectInfo.id}_data:/var/lib/postgresql/data`],
-        ports: [`${dbPort[0]}:${getDbPort(dbType)}`],
-        networks: ['deploy-network']
+        ExposedPorts: {
+          [`${getDbPort(dbType)}/tcp`]: {}
+        },
+        NetworkingConfig: {
+          EndpointsConfig: {
+            'deploy-network': {}
+          }
+        }
       };
       
-      composeConfig.volumes = {
-        ...(composeConfig.volumes || {}),
-        [`db_${projectInfo.id}_data`]: {}
-      };
+      containerConfigs.push(dbContainerConfig);
+      
+      // Utworzenie wolumenu dla danych bazy danych
+      try {
+        await docker.createVolume({
+          Name: `db_${projectInfo.id}_data`
+        });
+        logger.info(`Utworzono wolumen db_${projectInfo.id}_data`);
+      } catch (err) {
+        logger.warn(`Błąd podczas tworzenia wolumenu: ${err.message}`);
+      }
     }
     
     // Dodanie Redis, jeśli jest włączony
@@ -315,53 +372,216 @@ server {
       // Znalezienie wolnego portu dla Redis
       const [redisPort] = await findFreePort(6379);
       
-      composeConfig.services[`redis_${projectInfo.id}`] = {
-        image: 'redis:alpine',
-        container_name: `redis_${projectInfo.id}`,
-        restart: 'unless-stopped',
-        command: ['redis-server', '--requirepass', services.redis.password || 'redispassword'],
-        ports: [`${redisPort[0]}:6379`],
-        networks: ['deploy-network']
+      const redisContainerConfig = {
+        name: `redis_${projectInfo.id}`,
+        Image: 'redis:alpine',
+        Cmd: ['redis-server', '--requirepass', services.redis.password || 'redispassword'],
+        HostConfig: {
+          PortBindings: {
+            '6379/tcp': [{ HostPort: `${redisPort}` }]
+          },
+          RestartPolicy: {
+            Name: 'unless-stopped'
+          }
+        },
+        ExposedPorts: {
+          '6379/tcp': {}
+        },
+        NetworkingConfig: {
+          EndpointsConfig: {
+            'deploy-network': {}
+          }
+        }
       };
+      
+      containerConfigs.push(redisContainerConfig);
     }
     
-    // Zapisanie pliku docker-compose.override.yml
-    logger.debug(`Zapisywanie konfiguracji docker-compose: ${JSON.stringify(composeConfig, null, 2)}`);
+    // Zapisanie konfiguracji kontenerów do pliku dla celów diagnostycznych
     await fs.writeJson(
-      path.join(deployDir, 'docker-compose.override.yml'),
-      composeConfig,
+      path.join(deployDir, 'container-configs.json'),
+      containerConfigs,
       { spaces: 2 }
     );
     
-    logger.info(`Wygenerowano plik docker-compose.override.yml dla projektu ${projectInfo.name}`);
+    logger.info(`Wygenerowano konfigurację kontenerów dla projektu ${projectInfo.name}`);
+    return containerConfigs;
   } catch (err) {
-    logger.error(`Błąd podczas generowania docker-compose.override.yml: ${err.message}`);
+    logger.error(`Błąd podczas generowania konfiguracji kontenerów: ${err.message}`);
     throw err;
   }
 }
 
-// Funkcja do uruchamiania projektu
-async function startProject(projectId) {
-  return new Promise((resolve, reject) => {
-    const deployDir = path.join(DEPLOYED_DIR, projectId);
-    const command = `cd ${deployDir} && docker-compose -f docker-compose.override.yml up -d`;
+// Funkcja do uruchamiania projektu bezpośrednio przez Docker API
+async function startProjectWithDockerAPI(projectId, containerConfigs) {
+  try {
+    logger.info(`Uruchamianie projektu ${projectId} przez Docker API`);
     
-    exec(command, (error, stdout, stderr) => {
-      if (error) {
-        logger.error(`Błąd podczas uruchamiania projektu: ${error.message}`);
-        return reject(error);
+    // Sprawdzenie, czy sieć deploy-network istnieje, jeśli nie, to ją utworzyć
+    try {
+      const networks = await docker.listNetworks();
+      const networkExists = networks.some(network => network.Name === 'deploy-network');
+      
+      if (!networkExists) {
+        logger.info('Tworzenie sieci deploy-network');
+        await docker.createNetwork({
+          Name: 'deploy-network',
+          Driver: 'bridge'
+        });
+      }
+    } catch (err) {
+      logger.warn(`Błąd podczas sprawdzania/tworzenia sieci: ${err.message}`);
+    }
+    
+    // Uruchomienie kontenerów
+    for (const containerConfig of containerConfigs) {
+      const containerName = containerConfig.name;
+      
+      // Sprawdzenie, czy kontener już istnieje
+      try {
+        const containers = await docker.listContainers({ all: true });
+        const existingContainer = containers.find(container => 
+          container.Names.some(name => name === `/${containerName}`)
+        );
+        
+        if (existingContainer) {
+          logger.info(`Kontener ${containerName} już istnieje, usuwanie...`);
+          const container = docker.getContainer(existingContainer.Id);
+          
+          if (existingContainer.State === 'running') {
+            await container.stop();
+            logger.info(`Kontener ${containerName} zatrzymany`);
+          }
+          
+          await container.remove();
+          logger.info(`Kontener ${containerName} usunięty`);
+        }
+      } catch (err) {
+        logger.warn(`Błąd podczas sprawdzania/usuwania kontenera: ${err.message}`);
       }
       
-      logger.info(`Projekt ${projectId} został uruchomiony pomyślnie`);
-      logger.debug(`Stdout: ${stdout}`);
-      
-      if (stderr) {
-        logger.warn(`Stderr: ${stderr}`);
+      // Tworzenie i uruchamianie kontenera
+      try {
+        logger.info(`Tworzenie kontenera ${containerName}`);
+        
+        // Usunięcie pola name z konfiguracji, ponieważ jest przekazywane osobno
+        const { name, ...configWithoutName } = containerConfig;
+        
+        const container = await docker.createContainer({
+          ...configWithoutName,
+          name: containerName
+        });
+        
+        logger.info(`Kontener ${containerName} utworzony`);
+        
+        await container.start();
+        logger.info(`Kontener ${containerName} uruchomiony`);
+      } catch (err) {
+        logger.error(`Błąd podczas tworzenia/uruchamiania kontenera ${containerName}: ${err.message}`);
+        throw err;
       }
-      
-      resolve();
-    });
-  });
+    }
+    
+    logger.info(`Projekt ${projectId} uruchomiony pomyślnie przez Docker API`);
+  } catch (err) {
+    logger.error(`Błąd podczas uruchamiania projektu przez Docker API: ${err.message}`);
+    throw err;
+  }
+}
+
+// Funkcja do deploymentu pojedynczego pliku HTML
+async function deploySingleHtml(htmlContent, fileName) {
+  try {
+    logger.info(`Rozpoczęcie deploymentu pojedynczego pliku HTML: ${fileName}`);
+    
+    const projectId = generateProjectId();
+    const deployDir = path.join(DEPLOYED_DIR, projectId);
+    
+    // Utworzenie katalogu dla projektu
+    await fs.ensureDir(deployDir);
+    
+    // Zapisanie pliku HTML
+    const htmlFilePath = path.join(deployDir, 'index.html');
+    await fs.writeFile(htmlFilePath, htmlContent);
+    
+    // Znalezienie wolnego portu
+    const [freePort] = await findFreePort(8000);
+    logger.info(`Przydzielony port: ${freePort}`);
+    
+    // Generowanie konfiguracji NGINX dla statycznej strony HTML
+    const nginxConfPath = path.join(deployDir, 'nginx.conf');
+    const nginxConf = `
+server {
+    listen 80;
+    server_name localhost;
+    root /usr/share/nginx/html;
+    index index.html;
+    
+    # Obsługa statycznej strony HTML
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    
+    # Optymalizacja wydajności
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+    
+    # Nagłówki bezpieczeństwa
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-XSS-Protection "1; mode=block";
+    add_header X-Content-Type-Options "nosniff";
+}
+`;
+    
+    await fs.writeFile(nginxConfPath, nginxConf);
+    
+    // Konfiguracja kontenera NGINX
+    const containerConfig = {
+      name: `app_${projectId}`,
+      Image: 'nginx:alpine',
+      HostConfig: {
+        Binds: [
+          `${deployDir}:/usr/share/nginx/html`,
+          `${nginxConfPath}:/etc/nginx/conf.d/default.conf`
+        ],
+        PortBindings: {
+          '80/tcp': [{ HostPort: `${freePort}` }]
+        },
+        RestartPolicy: {
+          Name: 'unless-stopped'
+        }
+      },
+      ExposedPorts: {
+        '80/tcp': {}
+      },
+      NetworkingConfig: {
+        EndpointsConfig: {
+          'deploy-network': {}
+        }
+      }
+    };
+    
+    // Uruchomienie kontenera przez Docker API
+    await startProjectWithDockerAPI(projectId, [containerConfig]);
+    
+    // Zapisanie informacji o projekcie
+    const projectData = {
+      id: projectId,
+      name: fileName.replace('.html', ''),
+      type: 'static',
+      port: freePort,
+      url: `http://localhost:${freePort}`,
+      deployedAt: new Date().toISOString()
+    };
+    
+    await fs.writeJson(path.join(deployDir, 'project.json'), projectData);
+    logger.info(`Deployment pojedynczego pliku HTML zakończony pomyślnie: ${projectId}`);
+    
+    return projectData;
+  } catch (err) {
+    logger.error(`Błąd podczas deploymentu pojedynczego pliku HTML: ${err.message}`);
+    throw err;
+  }
 }
 
 // Funkcja do pobierania statusu projektu
@@ -471,6 +691,7 @@ function getDbPort(type) {
 module.exports = {
   analyzeProject,
   deployProject,
+  deploySingleHtml,
   getProjectStatus,
   getDeployedProjects
 };
